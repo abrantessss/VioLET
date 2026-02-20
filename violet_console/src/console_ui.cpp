@@ -7,7 +7,7 @@
 #include "ftxui/dom/elements.hpp"  
 #include "ftxui/screen/color.hpp" 
 
-ConsoleUI::ConsoleUI() : screen_(ftxui::ScreenInteractive::Fullscreen()) {
+ConsoleUI::ConsoleUI(const Config & config) : screen_(ftxui::ScreenInteractive::Fullscreen()), config_(config) {
   // Clear terminal at build
   clear_terminal();
 }
@@ -22,13 +22,8 @@ void ConsoleUI::clear_terminal() {
 }
 
 std::string ConsoleUI::f2s(float value, int precision) const {
-  // String stream to set the precision of the floats to represent on the UI
   std::stringstream stream;
-  
-  // Set the precision of the floats to represent in the UI to 2 decimal places
-  stream.str("");
-  stream.precision(precision);
-  stream << value;
+  stream << std::fixed << std::setprecision(precision) << value;
   return stream.str();
 }
 
@@ -74,6 +69,9 @@ void ConsoleUI::loop() {
 
 ftxui::Component ConsoleUI::telemetry() {
   auto telemetry = ftxui::Renderer([this] {
+    std::string soc = f2s(telemetry_data_.battery.soc, 0) + "%";
+    soc.resize(8, ' ');
+
     return ftxui::vbox({
       // Telemetry title
       ftxui::hbox({
@@ -94,15 +92,15 @@ ftxui::Component ConsoleUI::telemetry() {
       // Status & Battery parameters
       ftxui::hbox({
         ftxui::vbox({
-          ftxui::text("ID   : ") | ftxui::color(ftxui::Color::White),
-          ftxui::text("Armed: ") | ftxui::color(ftxui::Color::White),
-          ftxui::text("Mode : ") | ftxui::color(ftxui::Color::White)
+          ftxui::text("ID   : " + std::to_string(telemetry_data_.status.vehicle_id)) | ftxui::color(ftxui::Color::White),
+          ftxui::text(std::string("Armed: ") + (telemetry_data_.status.armed ? "TRUE" : "FALSE")) | ftxui::color(ftxui::Color::White),
+          ftxui::text("Mode : " + mode_map.at(telemetry_data_.status.mode)) | ftxui::color(ftxui::Color::White)
         }) | ftxui::border | ftxui::xflex_grow | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 5),
 
         ftxui::vbox({
-          ftxui::text("SoC  : ") | ftxui::color(ftxui::Color::White),
-          ftxui::text("Volt.: ") | ftxui::color(ftxui::Color::White),
-          ftxui::text("Curr.: ") | ftxui::color(ftxui::Color::White)
+          ftxui::text("SoC  : " + soc) | ftxui::color(ftxui::Color::White),
+          ftxui::text("Volt.: " + f2s(telemetry_data_.battery.voltage, 2) + "V") | ftxui::color(ftxui::Color::White),
+          ftxui::text("Curr.: " + f2s(telemetry_data_.battery.current, 2) + "A") | ftxui::color(ftxui::Color::White)
         }) | ftxui::border | ftxui::xflex_grow | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 5)
       }),
 
@@ -113,10 +111,22 @@ ftxui::Component ConsoleUI::telemetry() {
 
       // State parameters
       ftxui::vbox({
-        ftxui::text("Position     : " + input_) | ftxui::color(ftxui::Color::White),
-        ftxui::text("Orientation  : ") | ftxui::color(ftxui::Color::White),
-        ftxui::text("Inertial Vel.: ") | ftxui::color(ftxui::Color::White),
-        ftxui::text("Angular Vel. : ") | ftxui::color(ftxui::Color::White),
+        ftxui::text("Position     : [" 
+          + f2s(telemetry_data_.state.position[0], 1) + ", " 
+          + f2s(telemetry_data_.state.position[1], 1) + ", " 
+          + f2s(telemetry_data_.state.position[2], 1) + "]   (m)") | ftxui::color(ftxui::Color::White),
+        ftxui::text("Orientation  : ["
+          + f2s(telemetry_data_.state.attitude[0], 1) + ", "
+          + f2s(telemetry_data_.state.attitude[1], 1) + ", "
+          + f2s(telemetry_data_.state.attitude[2], 1) + "]   (rad)") | ftxui::color(ftxui::Color::White),
+        ftxui::text("Inertial Vel.: ["
+          + f2s(telemetry_data_.state.inertial_velocity[0], 1) + ", "
+          + f2s(telemetry_data_.state.inertial_velocity[1], 1) + ", "
+          + f2s(telemetry_data_.state.inertial_velocity[2], 1) + "]   (m/s)") | ftxui::color(ftxui::Color::White),
+        ftxui::text("Angular Vel. : ["
+          + f2s(telemetry_data_.state.angular_velocity[0], 1) + ", "
+          + f2s(telemetry_data_.state.angular_velocity[1], 1) + ", "
+          + f2s(telemetry_data_.state.angular_velocity[2], 1) + "]   (rad/s)") | ftxui::color(ftxui::Color::White),
         ftxui::vbox({
           ftxui::text(""),
           ftxui::text(""),
@@ -145,74 +155,74 @@ ftxui::Component ConsoleUI::telemetry() {
 ftxui::Component ConsoleUI::control() {
   auto arm_button = ftxui::Button(
     "Arm",
-    [] {},
+    std::bind(config_.on_arm_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(75, 155, 222))
   );
   auto disarm_button = ftxui::Button(
     "Disarm",
-    [] {},
+    std::bind(config_.on_disarm_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(153, 67, 202))
   );
   auto takeoff_button = ftxui::Button(
     "Takeoff",
-    [] {},
+    std::bind(config_.on_takeoff_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(75, 155, 222))
   );
   auto hold_button = ftxui::Button(
     "Hold",
-    [] {},
+    std::bind(config_.on_hold_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(75, 155, 222))
   );
   auto land_button = ftxui::Button(
     "Land",
-    [] {},
+    std::bind(config_.on_land_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(75, 155, 222))
   );
   auto kill_button = ftxui::Button(
     "Kill",
-    [] {},
+    std::bind(config_.on_kill_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(153, 67, 202))
   );
   auto waypoint_button = ftxui::Button(
     "  Go  ",
-    [] {},
+    std::bind(config_.on_waypoint_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(75, 155, 222))
   );
   auto line_button = ftxui::Button(
     "  Go  ",
-    [] {},
+    std::bind(config_.on_line_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(75, 155, 222))
   );
   auto circle_button = ftxui::Button(
     "  Go  ",
-    [] {},
+    std::bind(config_.on_circle_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(75, 155, 222))
   );
   auto lemniscate_button = ftxui::Button(
     "  Go  ",
-    [] {},
+    std::bind(config_.on_lemniscate_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(75, 155, 222))
   );
-  auto waypoint_x_input = ftxui::Input(&input_, "0.0");
-  auto waypoint_y_input = ftxui::Input(&input_, "0.0");
-  auto waypoint_z_input = ftxui::Input(&input_, "0.0");
-  auto line_x0_input = ftxui::Input(&input_, "0.0");
-  auto line_y0_input = ftxui::Input(&input_, "0.0");
-  auto line_z0_input = ftxui::Input(&input_, "0.0");
-  auto line_x1_input = ftxui::Input(&input_, "0.0");
-  auto line_y1_input = ftxui::Input(&input_, "0.0");
-  auto line_z1_input = ftxui::Input(&input_, "0.0");
-  auto line_v_input = ftxui::Input(&input_, "0.0");
-  auto circle_x_input = ftxui::Input(&input_, "0.0");
-  auto circle_y_input = ftxui::Input(&input_, "0.0");
-  auto circle_z_input = ftxui::Input(&input_, "0.0");
-  auto circle_r_input = ftxui::Input(&input_, "0.0");
-  auto circle_v_input = ftxui::Input(&input_, "0.0");
-  auto lemniscate_x_input = ftxui::Input(&input_, "0.0");
-  auto lemniscate_y_input = ftxui::Input(&input_, "0.0");
-  auto lemniscate_z_input = ftxui::Input(&input_, "0.0");
-  auto lemniscate_r_input = ftxui::Input(&input_, "0.0");
-  auto lemniscate_v_input = ftxui::Input(&input_, "0.0");
+  auto waypoint_x_input = ftxui::Input(&trajectory_data_.waypoint_pos_input[0], "0.0");
+  auto waypoint_y_input = ftxui::Input(&trajectory_data_.waypoint_pos_input[1], "0.0");
+  auto waypoint_z_input = ftxui::Input(&trajectory_data_.waypoint_pos_input[2], "0.0");
+  auto line_x0_input = ftxui::Input(&trajectory_data_.line_pos_input[0], "0.0"); 
+  auto line_y0_input = ftxui::Input(&trajectory_data_.line_pos_input[1], "0.0");
+  auto line_z0_input = ftxui::Input(&trajectory_data_.line_pos_input[2], "0.0");
+  auto line_x1_input = ftxui::Input(&trajectory_data_.line_pos_input[3], "0.0");
+  auto line_y1_input = ftxui::Input(&trajectory_data_.line_pos_input[4], "0.0");
+  auto line_z1_input = ftxui::Input(&trajectory_data_.line_pos_input[5], "0.0");
+  auto line_v_input = ftxui::Input(&trajectory_data_.line_speed_input, "0.0");
+  auto circle_x_input = ftxui::Input(&trajectory_data_.circle_pos_input[0], "0.0"); 
+  auto circle_y_input = ftxui::Input(&trajectory_data_.circle_pos_input[1], "0.0"); 
+  auto circle_z_input = ftxui::Input(&trajectory_data_.circle_pos_input[2], "0.0"); 
+  auto circle_r_input = ftxui::Input(&trajectory_data_.circle_pos_input[3], "0.0"); 
+  auto circle_v_input = ftxui::Input(&trajectory_data_.circle_speed_input, "0.0"); 
+  auto lemniscate_x_input = ftxui::Input(&trajectory_data_.lemniscate_pos_input[0], "0.0");
+  auto lemniscate_y_input = ftxui::Input(&trajectory_data_.lemniscate_pos_input[1], "0.0");
+  auto lemniscate_z_input = ftxui::Input(&trajectory_data_.lemniscate_pos_input[2], "0.0");
+  auto lemniscate_r_input = ftxui::Input(&trajectory_data_.lemniscate_pos_input[3], "0.0");
+  auto lemniscate_v_input = ftxui::Input(&trajectory_data_.lemniscate_speed_input, "0.0"); 
 
   auto container = ftxui::Container::Horizontal({
     arm_button,
