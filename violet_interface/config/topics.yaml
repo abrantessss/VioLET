@@ -1,0 +1,15 @@
+/**:
+  ros__parameters:
+    subscribers:
+      telemetry:
+        battery: "fmu/out/battery_status_v1"
+        state: "fmu/out/vehicle_odometry"
+        status: "fmu/out/vehicle_status_v2"
+        
+    publishers:
+      # Vehicle Telemetry (Status, Battery and State)
+      telemetry:
+        battery: "fmu/telemetry/battery"
+        state: "fmu/telemetry/state"
+        status: "fmu/telemetry/status"
+        

@@ -66,10 +66,14 @@ void ConsoleUI::loop() {
   screen_.Loop(ui);
 }
 
+void ConsoleUI::request_refresh() {
+  screen_.PostEvent(ftxui::Event::Custom);
+}
+
 
 ftxui::Component ConsoleUI::telemetry() {
   auto telemetry = ftxui::Renderer([this] {
-    std::string soc = f2s(telemetry_data_.battery.soc, 0) + "%";
+    std::string soc = f2s(telemetry_data_.battery.soc*100, 0) + "%";
     soc.resize(8, ' ');
 
     return ftxui::vbox({
@@ -111,22 +115,46 @@ ftxui::Component ConsoleUI::telemetry() {
 
       // State parameters
       ftxui::vbox({
-        ftxui::text("Position     : [" 
-          + f2s(telemetry_data_.state.position[0], 1) + ", " 
-          + f2s(telemetry_data_.state.position[1], 1) + ", " 
-          + f2s(telemetry_data_.state.position[2], 1) + "]   (m)") | ftxui::color(ftxui::Color::White),
-        ftxui::text("Orientation  : ["
-          + f2s(telemetry_data_.state.attitude[0], 1) + ", "
-          + f2s(telemetry_data_.state.attitude[1], 1) + ", "
-          + f2s(telemetry_data_.state.attitude[2], 1) + "]   (rad)") | ftxui::color(ftxui::Color::White),
-        ftxui::text("Inertial Vel.: ["
-          + f2s(telemetry_data_.state.inertial_velocity[0], 1) + ", "
-          + f2s(telemetry_data_.state.inertial_velocity[1], 1) + ", "
-          + f2s(telemetry_data_.state.inertial_velocity[2], 1) + "]   (m/s)") | ftxui::color(ftxui::Color::White),
-        ftxui::text("Angular Vel. : ["
-          + f2s(telemetry_data_.state.angular_velocity[0], 1) + ", "
-          + f2s(telemetry_data_.state.angular_velocity[1], 1) + ", "
-          + f2s(telemetry_data_.state.angular_velocity[2], 1) + "]   (rad/s)") | ftxui::color(ftxui::Color::White),
+        ftxui::hbox({
+          ftxui::text("Position     : [" 
+              + f2s(telemetry_data_.state.position[0], 1) + ", " 
+              + f2s(telemetry_data_.state.position[1], 1) + ", " 
+              + f2s(telemetry_data_.state.position[2], 1) + "]")
+              | ftxui::color(ftxui::Color::White),
+          ftxui::filler(),
+          ftxui::text("(m)")
+              | ftxui::color(ftxui::Color::White),
+        }),
+        ftxui::hbox({
+          ftxui::text("Orientation  : ["
+              + f2s(telemetry_data_.state.attitude[0], 1) + ", "
+              + f2s(telemetry_data_.state.attitude[1], 1) + ", "
+              + f2s(telemetry_data_.state.attitude[2], 1) + "]")
+              | ftxui::color(ftxui::Color::White),
+          ftxui::filler(),
+          ftxui::text("(rad)")
+              | ftxui::color(ftxui::Color::White),
+        }),
+        ftxui::hbox({
+          ftxui::text("Inertial Vel.: ["
+              + f2s(telemetry_data_.state.inertial_velocity[0], 1) + ", "
+              + f2s(telemetry_data_.state.inertial_velocity[1], 1) + ", "
+              + f2s(telemetry_data_.state.inertial_velocity[2], 1) + "]")
+              | ftxui::color(ftxui::Color::White),
+          ftxui::filler(),
+          ftxui::text("(m/s)")
+              | ftxui::color(ftxui::Color::White),
+        }),
+        ftxui::hbox({
+          ftxui::text("Angular Vel. : ["
+              + f2s(telemetry_data_.state.angular_velocity[0], 1) + ", "
+              + f2s(telemetry_data_.state.angular_velocity[1], 1) + ", "
+              + f2s(telemetry_data_.state.angular_velocity[2], 1) + "]")
+              | ftxui::color(ftxui::Color::White),
+          ftxui::filler(),
+          ftxui::text("(rad/s)")
+              | ftxui::color(ftxui::Color::White),
+        }),
         ftxui::vbox({
           ftxui::text(""),
           ftxui::text(""),
@@ -168,9 +196,9 @@ ftxui::Component ConsoleUI::control() {
     std::bind(config_.on_takeoff_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(75, 155, 222))
   );
-  auto hold_button = ftxui::Button(
-    "Hold",
-    std::bind(config_.on_hold_click),
+  auto orbit_button = ftxui::Button(
+    "Orbit",
+    std::bind(config_.on_orbit_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(75, 155, 222))
   );
   auto land_button = ftxui::Button(
@@ -228,7 +256,7 @@ ftxui::Component ConsoleUI::control() {
     arm_button,
     disarm_button,
     takeoff_button,
-    hold_button,
+    orbit_button,
     land_button,
     kill_button,
     waypoint_button,
@@ -269,7 +297,7 @@ ftxui::Component ConsoleUI::control() {
           arm_button->Render(),
           disarm_button->Render(),
           takeoff_button->Render(),
-          hold_button->Render(),
+          orbit_button->Render(),
           land_button->Render(),
           kill_button->Render()
         }) | ftxui::center | ftxui::flex

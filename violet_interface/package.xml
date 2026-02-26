@@ -1,18 +1,25 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>violet_console</name>
-  <version>1.0.0</version>
-  <description>A terminal console control</description>
-  <maintainer email="luis.g.abrantes@gmail.com">abrantess</maintainer>
-  <license>MIT</license>
+ <name>violet_interface</name>
+ <version>1.0.0</version>
+ <description>Interface for commutication using XRCE_DDS protocol</description>
+ <author email="luis.g.abrantes@tecnico.ulisboa.pt">Luís Abrantes</author>
+ <maintainer email="luis.g.abrantes@tecnico.ulisboa.pt">Luís Abrantes</maintainer>
+ <license>MIT</license>
 
  <buildtool_depend>ament_cmake</buildtool_depend>
 
  <!-- Packages Dependencies -->
  <depend>rclcpp</depend>
+ <depend>std_msgs</depend>
+ <depend>sensor_msgs</depend>
+ <depend>geometry_msgs</depend>
  <depend>nav_msgs</depend>
+
  <depend>violet_msgs</depend>
+ <depend>px4_msgs</depend>
+
 
  <test_depend>ament_lint_auto</test_depend>
  <test_depend>ament_cmake_copyright</test_depend>

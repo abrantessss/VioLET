@@ -3,7 +3,8 @@ import os
 
 from launch import LaunchDescription
 from launch.substitutions import LaunchConfiguration
-from launch.actions import ExecuteProcess, DeclareLaunchArgument, SetEnvironmentVariable, RegisterEventHandler, LogInfo, OpaqueFunction
+from launch.actions import ExecuteProcess, DeclareLaunchArgument, SetEnvironmentVariable, RegisterEventHandler, LogInfo, OpaqueFunction, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.event_handlers import OnProcessExit
 from launch_ros.actions import Node
 
@@ -24,6 +25,7 @@ def vehicle_launch(context, *args, **kwargs):
   # Get environment variables
   environment = os.environ
   environment['PX4_SIM_MODEL'] = 'gazebo-classic_' + vehicle_model
+  environment['PX4_UXRCE_DDS_NS'] = 'drone' + str(vehicle_id)
   environment['ROS_VERSION'] = '2'
 
   # Get PX4 and VioLET gazebo directories
@@ -32,8 +34,6 @@ def vehicle_launch(context, *args, **kwargs):
 
   # Get UAV model
   model = os.path.join(gazebo_dir, 'models/' + vehicle_model + '/' + vehicle_model + str(vehicle_id) + '.sdf')
-
-  print(model)
 
   model_gen_process = ExecuteProcess(
     cmd=[
@@ -87,6 +87,24 @@ def vehicle_launch(context, *args, **kwargs):
     shell=False
   )
 
+  # Start the Micro XRCE-DDS agent
+  xrce_agent = ExecuteProcess(
+    cmd=['MicroXRCEAgent', 'udp4', '-p', '8888'],
+    output='screen',
+    env=environment,
+    shell=False
+  )
+
+  # Call interface package launch file 
+  interface_launch_file = IncludeLaunchDescription(
+    PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('violet_interface'), 'launch/violet_interface.launch.py')),
+    # Define costume launch arguments/parameters 
+    launch_arguments={
+      'id': LaunchConfiguration('vehicle_id'), 
+      'namespace': 'drone',
+    }.items(),
+  )
+
   return [model_gen_process,
     
     # Launch vehicle after sdf model is generated
@@ -105,7 +123,9 @@ def vehicle_launch(context, *args, **kwargs):
         target_action=spawn_model,
         on_exit=[
           LogInfo(msg='Vehicle spawned in gazebo'),
-          px4_sitl_process
+          xrce_agent,
+          px4_sitl_process,
+          interface_launch_file
         ]
       )
     )

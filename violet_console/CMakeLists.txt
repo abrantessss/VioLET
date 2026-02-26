@@ -16,6 +16,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(violet_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 # ---------------------------------------------------------------------------
@@ -56,6 +57,7 @@ target_link_libraries(${PROJECT_NAME} ftxui::screen ftxui::dom ftxui::component)
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp
   nav_msgs
+  violet_msgs
 )
 
 if(BUILD_TESTING)

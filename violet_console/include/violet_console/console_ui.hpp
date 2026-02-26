@@ -7,17 +7,17 @@
 #include <array>
 #include <Eigen/Dense>
 #include "ftxui/component/component.hpp"
+#include "ftxui/component/event.hpp"
 #include "ftxui/component/screen_interactive.hpp"
 
 
 // Maps
 const std::map<uint8_t, std::string> mode_map = {
-  {0, "ARM    "},
-  {1, "DISARM "},
-  {2, "TAKEOFF"},
-  {3, "HOLD   "},
-  {4, "LAND   "},
-  {5, "KILL   "}
+  {0  , "TAKEOFF"},
+  {1  , "ORBIT  "},
+  {2  , "LAND   "},
+  {3  , "LOITER "},
+  {255, "UNKWOWN"}
 };
 
 // Structures
@@ -37,7 +37,7 @@ struct Battery {
 struct Status {
   uint8_t vehicle_id {0};
   bool armed {false};
-  uint8_t mode {1}; // Default Disarm
+  uint8_t mode {2}; // Default Disarm
 };
 
 struct Telemetry {
@@ -87,7 +87,7 @@ class ConsoleUI {
       std::function<void()> on_arm_click;
       std::function<void()> on_disarm_click;
       std::function<void()> on_takeoff_click;
-      std::function<void()> on_hold_click;
+      std::function<void()> on_orbit_click;
       std::function<void()> on_land_click;
       std::function<void()> on_kill_click;
 
@@ -103,6 +103,7 @@ class ConsoleUI {
 
     void clear_terminal();
     void loop();
+    void request_refresh();
 
     // Data
     Telemetry telemetry_data_;
