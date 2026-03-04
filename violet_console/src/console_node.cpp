@@ -13,7 +13,7 @@ ConsoleNode::ConsoleNode(const std::string vehicle_ns, const unsigned int vehicl
   config_.on_arm_click = std::bind(&ConsoleNode::on_arm_click, this);
   config_.on_disarm_click = std::bind(&ConsoleNode::on_disarm_click, this);
   config_.on_land_click = std::bind(&ConsoleNode::on_land_click, this);
-  config_.on_orbit_click = std::bind(&ConsoleNode::on_orbit_click, this);
+  config_.on_loiter_click = std::bind(&ConsoleNode::on_loiter_click, this);
   config_.on_takeoff_click = std::bind(&ConsoleNode::on_takeoff_click, this);
   config_.on_kill_click = std::bind(&ConsoleNode::on_kill_click, this);
 
@@ -32,6 +32,7 @@ ConsoleNode::~ConsoleNode() {}
 void ConsoleNode::start() {
   // Initialise pubs, subs and services
   init_subscribers();
+  init_publishers();
 
   // Add this node to the multithread executor
   executor_.add_node(this->shared_from_this());
@@ -41,6 +42,51 @@ void ConsoleNode::start() {
 
   // Start the console UI in this thread
   console_ui_->loop();
+}
+
+void ConsoleNode::init_publishers() {
+  /**
+   * Publisher to arm the vehicle
+   */
+  this->declare_parameter<std::string>("publishers.mode.arm", vehicle_ns_ +  std::string("/fmu/mode/arm"));
+  rclcpp::Parameter arm_topic = this->get_parameter("publishers.mode.arm");
+  arm_pub_ = this->create_publisher<violet_msgs::msg::Mode>
+    (arm_topic.as_string(), rclcpp::SensorDataQoS());
+  /**
+   * Publisher to disarm the vehicle
+   */
+  this->declare_parameter<std::string>("publishers.mode.disarm", vehicle_ns_ +  std::string("/fmu/mode/disarm"));
+  rclcpp::Parameter disarm_topic = this->get_parameter("publishers.mode.disarm");
+  disarm_pub_ = this->create_publisher<violet_msgs::msg::Mode>
+    (disarm_topic.as_string(), rclcpp::SensorDataQoS());
+  /**
+   * Publisher to takeoff the vehicle
+   */
+  this->declare_parameter<std::string>("publishers.mode.takeoff", vehicle_ns_ +  std::string("/fmu/mode/takeoff"));
+  rclcpp::Parameter takeoff_topic = this->get_parameter("publishers.mode.takeoff");
+  takeoff_pub_ = this->create_publisher<violet_msgs::msg::Mode>
+    (takeoff_topic.as_string(), rclcpp::SensorDataQoS());
+  /**
+   * Publisher to loiter the vehicle
+   */
+  this->declare_parameter<std::string>("publishers.mode.loiter", vehicle_ns_ +  std::string("/fmu/mode/loiter"));
+  rclcpp::Parameter loiter_topic = this->get_parameter("publishers.mode.loiter");
+  loiter_pub_ = this->create_publisher<violet_msgs::msg::Mode>
+    (loiter_topic.as_string(), rclcpp::SensorDataQoS());
+  /**
+   * Publisher to land the vehicle
+   */
+  this->declare_parameter<std::string>("publishers.mode.land", vehicle_ns_ +  std::string("/fmu/mode/land"));
+  rclcpp::Parameter land_topic = this->get_parameter("publishers.mode.land");
+  land_pub_ = this->create_publisher<violet_msgs::msg::Mode>
+    (land_topic.as_string(), rclcpp::SensorDataQoS());
+  /**
+   * Publisher to kill the vehicle
+   */
+  this->declare_parameter<std::string>("publishers.mode.kill", vehicle_ns_ +  std::string("/fmu/mode/kill"));
+  rclcpp::Parameter kill_topic = this->get_parameter("publishers.mode.kill");
+  kill_pub_ = this->create_publisher<violet_msgs::msg::Mode>
+    (kill_topic.as_string(), rclcpp::SensorDataQoS());
 }
 
 void ConsoleNode::init_subscribers() {
@@ -68,27 +114,39 @@ void ConsoleNode::init_subscribers() {
 }
 
 void ConsoleNode::on_arm_click() {
-  console_ui_->telemetry_data_.status.mode = 0;
+  violet_msgs::msg::Mode arm_msg;
+  arm_msg.mode = true;
+  arm_pub_->publish(arm_msg);
 }
 
 void ConsoleNode::on_disarm_click() {
-  console_ui_->telemetry_data_.status.mode = 0;
+  violet_msgs::msg::Mode disarm_msg;
+  disarm_msg.mode = true;
+  disarm_pub_->publish(disarm_msg);
 }
 
 void ConsoleNode::on_takeoff_click() {
-  console_ui_->telemetry_data_.status.mode = 0;
+  violet_msgs::msg::Mode takeoff_msg;
+  takeoff_msg.mode = true;
+  takeoff_pub_->publish(takeoff_msg);
 }
 
-void ConsoleNode::on_orbit_click() {
-  console_ui_->telemetry_data_.status.mode = 0;
+void ConsoleNode::on_loiter_click() {
+  violet_msgs::msg::Mode loiter_msg;
+  loiter_msg.mode = true;
+  loiter_pub_->publish(loiter_msg);
 }
 
 void ConsoleNode::on_land_click() {
-  console_ui_->telemetry_data_.status.mode = 0;
+  violet_msgs::msg::Mode land_msg;
+  land_msg.mode = true;
+  land_pub_->publish(land_msg);
 }
 
 void ConsoleNode::on_kill_click() {
-  console_ui_->telemetry_data_.status.mode = 0;
+  violet_msgs::msg::Mode kill_msg;
+  kill_msg.mode = true;
+  kill_pub_->publish(kill_msg);
 }
 
 void ConsoleNode::on_waypoint_click() {

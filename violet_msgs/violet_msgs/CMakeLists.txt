@@ -30,6 +30,12 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Battery.msg"
   "msg/State.msg"
   "msg/Status.msg"
+  
+  # Mode Messages
+  "msg/Mode.msg"
+  
+  # Mode Services
+  "srv/Mode.srv"
 
   # Depedencies for generating the messages, services and actions
   DEPENDENCIES 

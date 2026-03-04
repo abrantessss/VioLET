@@ -196,9 +196,9 @@ ftxui::Component ConsoleUI::control() {
     std::bind(config_.on_takeoff_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(75, 155, 222))
   );
-  auto orbit_button = ftxui::Button(
-    "Orbit",
-    std::bind(config_.on_orbit_click),
+  auto loiter_button = ftxui::Button(
+    "Loiter",
+    std::bind(config_.on_loiter_click),
     ftxui::ButtonOption::Animated(ftxui::Color::RGB(75, 155, 222))
   );
   auto land_button = ftxui::Button(
@@ -256,7 +256,7 @@ ftxui::Component ConsoleUI::control() {
     arm_button,
     disarm_button,
     takeoff_button,
-    orbit_button,
+    loiter_button,
     land_button,
     kill_button,
     waypoint_button,
@@ -297,7 +297,7 @@ ftxui::Component ConsoleUI::control() {
           arm_button->Render(),
           disarm_button->Render(),
           takeoff_button->Render(),
-          orbit_button->Render(),
+          loiter_button->Render(),
           land_button->Render(),
           kill_button->Render()
         }) | ftxui::center | ftxui::flex

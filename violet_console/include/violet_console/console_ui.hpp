@@ -14,9 +14,8 @@
 // Maps
 const std::map<uint8_t, std::string> mode_map = {
   {0  , "TAKEOFF"},
-  {1  , "ORBIT  "},
-  {2  , "LAND   "},
-  {3  , "LOITER "},
+  {1  , "LAND   "},
+  {2  , "LOITER "},
   {255, "UNKWOWN"}
 };
 
@@ -87,7 +86,7 @@ class ConsoleUI {
       std::function<void()> on_arm_click;
       std::function<void()> on_disarm_click;
       std::function<void()> on_takeoff_click;
-      std::function<void()> on_orbit_click;
+      std::function<void()> on_loiter_click;
       std::function<void()> on_land_click;
       std::function<void()> on_kill_click;
 

@@ -42,10 +42,20 @@ void ROSNode::init_publishers() {
   rclcpp::Parameter status_topic = this->get_parameter("publishers.telemetry.status");
   status_pub_ = this->create_publisher<violet_msgs::msg::Status>
     (status_topic.as_string(), rclcpp::SensorDataQoS());
+  /**
+   * Publisher for vehicle mode
+   */
+  this->declare_parameter<std::string>("publishers.mode.request", "fmu/in/vehicle_command");
+  rclcpp::Parameter mode_topic = this->get_parameter("publishers.mode.request");
+  mode_pub_ = this->create_publisher<px4_msgs::msg::VehicleCommand>
+    (mode_topic.as_string(), rclcpp::SensorDataQoS());
     
 }
 
 void ROSNode::init_subscribers_and_services() {
+  srv_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  ack_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+
   /**
    * Subscribe to battery status
    */
@@ -67,6 +77,79 @@ void ROSNode::init_subscribers_and_services() {
   rclcpp::Parameter status_topic = this->get_parameter("subscribers.telemetry.status");
   status_sub_ = this->create_subscription<px4_msgs::msg::VehicleStatus>(
     status_topic.as_string(), rclcpp::SensorDataQoS(), std::bind(&ROSNode::on_status_callback, this, std::placeholders::_1));
+  /**
+   * Subscribe to vehicle mode ack
+   */
+  this->declare_parameter<std::string>("subscribers.mode.response", "fmu/out/vehicle_command_ack_v1");
+  rclcpp::Parameter mode_topic = this->get_parameter("subscribers.mode.response");
+  rclcpp::SubscriptionOptions mode_sub_options;
+  mode_sub_options.callback_group = ack_group_;
+  mode_sub_ = this->create_subscription<px4_msgs::msg::VehicleCommandAck>(
+    mode_topic.as_string(),
+    rclcpp::SensorDataQoS(),
+    std::bind(&ROSNode::mode_ack_callback, this, std::placeholders::_1),
+    mode_sub_options);
+  
+  /**
+   * Arm service
+   */
+  this->declare_parameter<std::string>("services.mode.arm", "fmu/mode/arm");
+  rclcpp::Parameter arm_topic = this->get_parameter("services.mode.arm");
+  arm_srv_ = this->create_service<violet_msgs::srv::Mode>(
+    arm_topic.as_string(),
+    std::bind(&ROSNode::srv_arm_callback, this, std::placeholders::_1, std::placeholders::_2),
+    rmw_qos_profile_services_default,
+    srv_group_);
+  /**
+   * Disarm service
+   */
+  this->declare_parameter<std::string>("services.mode.disarm", "fmu/mode/disarm");
+  rclcpp::Parameter disarm_topic = this->get_parameter("services.mode.disarm");
+  disarm_srv_ = this->create_service<violet_msgs::srv::Mode>(
+    disarm_topic.as_string(),
+    std::bind(&ROSNode::srv_disarm_callback, this, std::placeholders::_1, std::placeholders::_2),
+    rmw_qos_profile_services_default,
+    srv_group_);
+  /**
+   * Takeoff service
+   */
+  this->declare_parameter<std::string>("services.mode.takeoff", "fmu/mode/takeoff");
+  rclcpp::Parameter takeoff_topic = this->get_parameter("services.mode.takeoff");
+  takeoff_srv_ = this->create_service<violet_msgs::srv::Mode>(
+    takeoff_topic.as_string(),
+    std::bind(&ROSNode::srv_takeoff_callback, this, std::placeholders::_1, std::placeholders::_2),
+    rmw_qos_profile_services_default,
+    srv_group_);
+  /**
+   * Loiter service
+   */
+  this->declare_parameter<std::string>("services.mode.loiter", "fmu/mode/loiter");
+  rclcpp::Parameter loiter_topic = this->get_parameter("services.mode.loiter");
+  loiter_srv_ = this->create_service<violet_msgs::srv::Mode>(
+    loiter_topic.as_string(),
+    std::bind(&ROSNode::srv_loiter_callback, this, std::placeholders::_1, std::placeholders::_2),
+    rmw_qos_profile_services_default,
+    srv_group_);
+  /**
+   * Land service
+   */
+  this->declare_parameter<std::string>("services.mode.land", "fmu/mode/land");
+  rclcpp::Parameter land_topic = this->get_parameter("services.mode.land");
+  land_srv_ = this->create_service<violet_msgs::srv::Mode>(
+    land_topic.as_string(),
+    std::bind(&ROSNode::srv_land_callback, this, std::placeholders::_1, std::placeholders::_2),
+    rmw_qos_profile_services_default,
+    srv_group_);
+  /**
+   * Kill service
+   */
+  this->declare_parameter<std::string>("services.mode.kill", "fmu/mode/kill");
+  rclcpp::Parameter kill_topic = this->get_parameter("services.mode.kill");
+  kill_srv_ = this->create_service<violet_msgs::srv::Mode>(
+    kill_topic.as_string(),
+    std::bind(&ROSNode::srv_kill_callback, this, std::placeholders::_1, std::placeholders::_2),
+    rmw_qos_profile_services_default,
+    srv_group_);
 }
 
 void ROSNode::on_battery_callback(const px4_msgs::msg::BatteryStatus::ConstSharedPtr msg) { 
@@ -154,14 +237,11 @@ void ROSNode::on_status_callback(const px4_msgs::msg::VehicleStatus::ConstShared
     case 17: //takeoff
       status_msg_.mode = 0;
       break;
-    case 21: //orbit
+    case 18: //land
       status_msg_.mode = 1;
       break;
-    case 18: //land
-      status_msg_.mode = 2;
-      break;
     case 4: //loiter
-      status_msg_.mode = 3;
+      status_msg_.mode = 2;
       break;
     default:
       status_msg_.mode = 255; 
@@ -170,4 +250,237 @@ void ROSNode::on_status_callback(const px4_msgs::msg::VehicleStatus::ConstShared
 
   // Publish message
   status_pub_->publish(status_msg_);
+}
+
+void ROSNode::mode_ack_callback(const px4_msgs::msg::VehicleCommandAck::ConstSharedPtr msg) {
+  if (msg->result == 0){
+    std::lock_guard<std::mutex> lock(ack_mutex_);
+    got_ack_ = true;
+    ack_cv_.notify_all();
+  }
+}
+
+void ROSNode::srv_arm_callback(const violet_msgs::srv::Mode::Request::SharedPtr request, const violet_msgs::srv::Mode::Response::SharedPtr response) {
+  (void)request;
+  {
+    std::lock_guard<std::mutex> lock(ack_mutex_);
+    got_ack_ = false;
+  }
+  response->success = false;
+
+  // Build Arm request
+  px4_msgs::msg::VehicleCommand msg{};
+
+  msg.timestamp = static_cast<uint64_t>(this->get_clock()->now().nanoseconds() / 1000ULL);  // microseconds
+
+  msg.command = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM; // 400
+  msg.param1 = 1.0f;  //arm
+
+  msg.target_system = vehicle_id_;
+  msg.target_component = 1;
+  msg.source_system = 1;
+  msg.source_component = 1;
+
+  msg.from_external = true;
+
+  mode_pub_->publish(msg);
+
+  // Wait up to 3s for a matching ACK while other callbacks keep running.
+  std::unique_lock<std::mutex> lock(ack_mutex_);
+  const bool ack_received = ack_cv_.wait_for(
+    lock,
+    std::chrono::seconds(3),
+    [this]() { return got_ack_; });
+
+  response->success = ack_received;
+  got_ack_ = false;
+}
+
+void ROSNode::srv_disarm_callback(const violet_msgs::srv::Mode::Request::SharedPtr request, const violet_msgs::srv::Mode::Response::SharedPtr response) {
+  (void)request;
+  {
+    std::lock_guard<std::mutex> lock(ack_mutex_);
+    got_ack_ = false;
+  }
+  response->success = false;
+
+  // Build Disarm request
+  px4_msgs::msg::VehicleCommand msg{};
+
+  msg.timestamp = static_cast<uint64_t>(this->get_clock()->now().nanoseconds() / 1000ULL);  // microseconds
+
+  msg.command = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM; // 400
+  msg.param1 = 0.0f;  //disarm
+
+  msg.target_system = vehicle_id_;
+  msg.target_component = 1;
+  msg.source_system = 1;
+  msg.source_component = 1;
+
+  msg.from_external = true;
+
+  mode_pub_->publish(msg);
+
+  // Wait up to 3s for a matching ACK while other callbacks keep running.
+  std::unique_lock<std::mutex> lock(ack_mutex_);
+  const bool ack_received = ack_cv_.wait_for(
+    lock,
+    std::chrono::seconds(3),
+    [this]() { return got_ack_; });
+
+  response->success = ack_received;
+  got_ack_ = false;
+}
+
+void ROSNode::srv_takeoff_callback(const violet_msgs::srv::Mode::Request::SharedPtr request, const violet_msgs::srv::Mode::Response::SharedPtr response) {
+  (void)request;
+  {
+    std::lock_guard<std::mutex> lock(ack_mutex_);
+    got_ack_ = false;
+  }
+
+  response->success = false;
+
+  px4_msgs::msg::VehicleCommand msg{};
+
+  msg.timestamp = static_cast<uint64_t>(this->get_clock()->now().nanoseconds() / 1000ULL); // microseconds
+
+  msg.command = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_DO_SET_MODE; // 176
+  msg.param1 = 1.0f;  // use custom mode
+  msg.param2 = 4.0f;  // PX4_CUSTOM_MAIN_MODE_AUTO
+  msg.param3 = 2.0f;  // takeoff
+
+  msg.target_system = vehicle_id_;
+  msg.target_component = 1;
+  msg.source_system = 1;
+  msg.source_component = 1;
+
+  msg.from_external = true;
+
+  mode_pub_->publish(msg);
+
+  std::unique_lock<std::mutex> lock(ack_mutex_);
+  const bool ack_received = ack_cv_.wait_for(
+    lock,
+    std::chrono::seconds(3),
+    [this]() { return got_ack_; });
+
+  response->success = ack_received;
+  got_ack_ = false;
+}
+
+void ROSNode::srv_loiter_callback(const violet_msgs::srv::Mode::Request::SharedPtr request, const violet_msgs::srv::Mode::Response::SharedPtr response) {
+  (void)request;
+  {
+    std::lock_guard<std::mutex> lock(ack_mutex_);
+    got_ack_ = false;
+  }
+
+  response->success = false;
+
+  px4_msgs::msg::VehicleCommand msg{};
+
+  msg.timestamp = static_cast<uint64_t>(this->get_clock()->now().nanoseconds() / 1000ULL); // microseconds
+
+  msg.command = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_DO_SET_MODE; 
+  msg.param1 = 1.0f;  // use custom mode
+  msg.param2 = 4.0f;  // PX4_CUSTOM_MAIN_MODE_AUTO
+  msg.param3 = 3.0f;  // loiter
+
+
+  msg.target_system = vehicle_id_;
+  msg.target_component = 1;
+  msg.source_system = 1;
+  msg.source_component = 1;
+
+  msg.from_external = true;
+
+  mode_pub_->publish(msg);
+
+  std::unique_lock<std::mutex> lock(ack_mutex_);
+  const bool ack_received = ack_cv_.wait_for(
+    lock,
+    std::chrono::seconds(3),
+    [this]() { return got_ack_; });
+
+  response->success = ack_received;
+  got_ack_ = false;
+}
+
+void ROSNode::srv_land_callback(const violet_msgs::srv::Mode::Request::SharedPtr request, const violet_msgs::srv::Mode::Response::SharedPtr response) {
+  (void)request;
+  {
+    std::lock_guard<std::mutex> lock(ack_mutex_);
+    got_ack_ = false;
+  }
+
+  response->success = false;
+
+  px4_msgs::msg::VehicleCommand msg{};
+
+  msg.timestamp = static_cast<uint64_t>(this->get_clock()->now().nanoseconds() / 1000ULL); // microseconds
+
+  msg.command = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_DO_SET_MODE; 
+  msg.param1 = 1.0f;  // use custom mode
+  msg.param2 = 4.0f;  // PX4_CUSTOM_MAIN_MODE_AUTO
+  msg.param3 = 6.0f;  // land
+
+
+  msg.target_system = vehicle_id_;
+  msg.target_component = 1;
+  msg.source_system = 1;
+  msg.source_component = 1;
+
+  msg.from_external = true;
+
+  mode_pub_->publish(msg);
+
+  std::unique_lock<std::mutex> lock(ack_mutex_);
+  const bool ack_received = ack_cv_.wait_for(
+    lock,
+    std::chrono::seconds(3),
+    [this]() { return got_ack_; });
+
+  response->success = ack_received;
+  got_ack_ = false;
+}
+
+void ROSNode::srv_kill_callback(
+  const violet_msgs::srv::Mode::Request::SharedPtr request,
+  const violet_msgs::srv::Mode::Response::SharedPtr response)
+{
+  (void)request;
+  {
+    std::lock_guard<std::mutex> lock(ack_mutex_);
+    got_ack_ = false;
+  }
+
+  response->success = false;
+
+  px4_msgs::msg::VehicleCommand msg{};
+
+  msg.timestamp =
+    static_cast<uint64_t>(this->get_clock()->now().nanoseconds() / 1000ULL);
+
+  msg.command = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM; // 400
+  msg.param1  = 0.0f;     // disarm
+  msg.param2  = 21196.0f; // force disarm (kill)
+
+  msg.target_system    = vehicle_id_;
+  msg.target_component = 1;
+  msg.source_system    = 1;
+  msg.source_component = 1;
+
+  msg.from_external = true;
+
+  mode_pub_->publish(msg);
+
+  std::unique_lock<std::mutex> lock(ack_mutex_);
+  const bool ack_received = ack_cv_.wait_for(
+    lock,
+    std::chrono::seconds(3),
+    [this]() { return got_ack_; });
+
+  response->success = ack_received;
+  got_ack_ = false;
 }

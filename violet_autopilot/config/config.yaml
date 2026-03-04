@@ -1,0 +1,18 @@
+/**:
+  ros__parameters:
+    subscribers:
+      mode:
+        arm: "fmu/mode/arm"
+        disarm: "fmu/mode/disarm"
+        takeoff: "fmu/mode/takeoff"
+        orbit: "fmu/mode/orbit"
+        land: "fmu/mode/land"
+        kill: "fmu/mode/kill"
+    publishers:
+      mode:
+        arm: "fmu/mode/arm"
+        disarm: "fmu/mode/disarm"
+        takeoff: "fmu/mode/takeoff"
+        orbit: "fmu/mode/orbit"
+        land: "fmu/mode/land"
+        kill: "fmu/mode/kill"

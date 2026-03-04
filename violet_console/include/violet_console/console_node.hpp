@@ -9,6 +9,8 @@
 #include "violet_msgs/msg/battery.hpp"
 #include "violet_msgs/msg/state.hpp"
 #include "violet_msgs/msg/status.hpp"
+#include "violet_msgs/msg/mode.hpp"
+
 
 class ConsoleNode : public rclcpp::Node {
 
@@ -19,13 +21,14 @@ class ConsoleNode : public rclcpp::Node {
     void start();
 
     // ROS2 pub, subs and services
+    void init_publishers();
     void init_subscribers();
 
     // Control Functions
     void on_arm_click();
     void on_disarm_click();
     void on_land_click();
-    void on_orbit_click();
+    void on_loiter_click();
     void on_takeoff_click();
     void on_kill_click();
 
@@ -48,6 +51,14 @@ class ConsoleNode : public rclcpp::Node {
     // ROS2 thread setup
     std::thread executor_thread_;
     rclcpp::executors::MultiThreadedExecutor executor_;
+
+    // ROS2 publishers
+    rclcpp::Publisher<violet_msgs::msg::Mode>::SharedPtr arm_pub_;
+    rclcpp::Publisher<violet_msgs::msg::Mode>::SharedPtr disarm_pub_;
+    rclcpp::Publisher<violet_msgs::msg::Mode>::SharedPtr takeoff_pub_;
+    rclcpp::Publisher<violet_msgs::msg::Mode>::SharedPtr loiter_pub_;
+    rclcpp::Publisher<violet_msgs::msg::Mode>::SharedPtr land_pub_;
+    rclcpp::Publisher<violet_msgs::msg::Mode>::SharedPtr kill_pub_;
 
     // ROS2 subscribers
     rclcpp::Subscription<violet_msgs::msg::Battery>::SharedPtr battery_sub_;

@@ -90,7 +90,7 @@ def vehicle_launch(context, *args, **kwargs):
   # Start the Micro XRCE-DDS agent
   xrce_agent = ExecuteProcess(
     cmd=['MicroXRCEAgent', 'udp4', '-p', '8888'],
-    output='screen',
+    #output='screen',
     env=environment,
     shell=False
   )
@@ -98,6 +98,16 @@ def vehicle_launch(context, *args, **kwargs):
   # Call interface package launch file 
   interface_launch_file = IncludeLaunchDescription(
     PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('violet_interface'), 'launch/violet_interface.launch.py')),
+    # Define costume launch arguments/parameters 
+    launch_arguments={
+      'id': LaunchConfiguration('vehicle_id'), 
+      'namespace': 'drone',
+    }.items(),
+  )
+
+  # Call autopilot package launch file 
+  autopilot_launch_file = IncludeLaunchDescription(
+    PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('violet_autopilot'), 'launch/violet_autopilot.launch.py')),
     # Define costume launch arguments/parameters 
     launch_arguments={
       'id': LaunchConfiguration('vehicle_id'), 
@@ -125,7 +135,8 @@ def vehicle_launch(context, *args, **kwargs):
           LogInfo(msg='Vehicle spawned in gazebo'),
           xrce_agent,
           px4_sitl_process,
-          interface_launch_file
+          interface_launch_file,
+          autopilot_launch_file
         ]
       )
     )
