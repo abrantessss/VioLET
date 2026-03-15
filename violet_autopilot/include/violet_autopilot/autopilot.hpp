@@ -1,22 +1,50 @@
 #pragma once
 
 #include "rclcpp/rclcpp.hpp"
+#include "controller.hpp"
+#include "onboard_controller.hpp"
+#include "mellinger_controller.hpp"
+#include <Eigen/Dense>
 
 // Console mode messages
 #include "violet_msgs/msg/mode.hpp"
+#include "violet_msgs/msg/state.hpp"
+#include "violet_msgs/msg/trajectory.hpp"
 
 
 // Services mode
 #include "violet_msgs/srv/mode.hpp"
 
-// Maps
-const std::map<uint8_t, std::string> mode_map = {
-  {0  , "ARM"},
-  {1  , "DISARM"},
-  {2  , "TAKEOFF"},
-  {3  , "LOITER"},
-  {4  , "LAND"},
-  {5  , "KILL"}
+// Structures
+struct State {
+  Eigen::Vector3d position{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d attitude{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d inertial_velocity{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d angular_velocity{Eigen::Vector3d::Zero()};
+};
+
+struct Trajectories {
+  int type;
+  
+  Eigen::Vector3d waypoint{Eigen::Vector3d::Zero()};
+
+  Eigen::Matrix<double, 7, 1> line{Eigen::Matrix<double, 7, 1>::Zero()};
+
+  Eigen::Matrix<double, 5, 1> circle{Eigen::Matrix<double, 5, 1>::Zero()};
+
+  Eigen::Matrix<double, 5, 1> lemniscate{Eigen::Matrix<double, 5, 1>::Zero()};
+};
+
+
+enum class Mode : uint8_t {
+  ARM = 0,
+  DISARM = 1,
+  TAKEOFF = 2,
+  LOITER = 3,
+  LAND = 4,
+  KILL = 5,
+  FOLLOW = 6,
+  UNKNOWN = 255
 };
 
 
@@ -54,7 +82,11 @@ class Autopilot : public rclcpp::Node {
      */
     void init_publishers();
 
-
+    /**
+     * @ingroup initFunction
+     * @brief Method used to initialise controller
+     */
+    void init_controller();
 
     /**
      * @defgroup publisherMessageUpdate
@@ -97,7 +129,19 @@ class Autopilot : public rclcpp::Node {
      */
     void on_kill_callback(const violet_msgs::msg::Mode::ConstSharedPtr msg); 
 
+    /**
+     * @ingroup publisherMessageUpdate
+     * @brief Method used to get the trajectory to follow
+     */
+    void on_follow_callback(const violet_msgs::msg::Trajectory::ConstSharedPtr msg); 
 
+    /**
+     * @ingroup publisherMessageUpdate
+     * @brief Method used to get state of the vehicle
+     */
+    void on_state_callback(const violet_msgs::msg::State::ConstSharedPtr msg); 
+
+    
 
     /**
      * @defgroup publisehrs
@@ -118,12 +162,21 @@ class Autopilot : public rclcpp::Node {
     rclcpp::Subscription<violet_msgs::msg::Mode>::SharedPtr loiter_sub_{nullptr};
     rclcpp::Subscription<violet_msgs::msg::Mode>::SharedPtr land_sub_{nullptr};
     rclcpp::Subscription<violet_msgs::msg::Mode>::SharedPtr kill_sub_{nullptr};
+    rclcpp::Subscription<violet_msgs::msg::Trajectory>::SharedPtr follow_sub_{nullptr};
+    rclcpp::Subscription<violet_msgs::msg::State>::SharedPtr state_sub_{nullptr};
 
-
-
+    
     /**
      * @ingroup Variables&Classes
      * variables and classed used in the node
      */
-    int current_mode_{1};
+    Mode current_mode_{Mode::DISARM};
+    State state_;
+    Trajectories trajectory_;
+    std::string controller_type_;
+    autopilot::Controller::UniquePtr controller_{nullptr};
+    double tnow_;
+    double tprev_;
+    
+
 };

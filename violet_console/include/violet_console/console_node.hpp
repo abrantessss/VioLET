@@ -9,6 +9,7 @@
 #include "violet_msgs/msg/battery.hpp"
 #include "violet_msgs/msg/state.hpp"
 #include "violet_msgs/msg/status.hpp"
+#include "violet_msgs/msg/trajectory.hpp"
 #include "violet_msgs/msg/mode.hpp"
 
 
@@ -59,6 +60,7 @@ class ConsoleNode : public rclcpp::Node {
     rclcpp::Publisher<violet_msgs::msg::Mode>::SharedPtr loiter_pub_;
     rclcpp::Publisher<violet_msgs::msg::Mode>::SharedPtr land_pub_;
     rclcpp::Publisher<violet_msgs::msg::Mode>::SharedPtr kill_pub_;
+    rclcpp::Publisher<violet_msgs::msg::Trajectory>::SharedPtr follow_pub_;
 
     // ROS2 subscribers
     rclcpp::Subscription<violet_msgs::msg::Battery>::SharedPtr battery_sub_;

@@ -243,6 +243,9 @@ void ROSNode::on_status_callback(const px4_msgs::msg::VehicleStatus::ConstShared
     case 4: //loiter
       status_msg_.mode = 2;
       break;
+    case 14: //offboard
+      status_msg_.mode = 3;
+      break;
     default:
       status_msg_.mode = 255; 
       break;

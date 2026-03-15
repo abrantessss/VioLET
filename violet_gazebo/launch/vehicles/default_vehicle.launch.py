@@ -110,8 +110,9 @@ def vehicle_launch(context, *args, **kwargs):
     PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('violet_autopilot'), 'launch/violet_autopilot.launch.py')),
     # Define costume launch arguments/parameters 
     launch_arguments={
-      'id': LaunchConfiguration('vehicle_id'), 
-      'namespace': 'drone',
+      'vehicle_id': LaunchConfiguration('vehicle_id'),
+      'vehicle_ns': 'drone',
+      'config_yaml': LaunchConfiguration('config_yaml')
     }.items(),
   )
 
@@ -157,6 +158,11 @@ def generate_launch_description():
     DeclareLaunchArgument('gazebo_dir', default_value=os.path.join(PX4_DIR, 'Tools/simulation/gazebo-classic/sitl_gazebo-classic'), description='Path to gazebo directory where UAV model is located'),
     DeclareLaunchArgument('vehicle_model', default_value='iris', description='UAV model name'),
     DeclareLaunchArgument('vehicle_id', default_value='1', description='Drone ID in the network'),
+    DeclareLaunchArgument(
+      'config_yaml',
+      default_value=os.path.join(get_package_share_directory('violet_autopilot'), 'config', 'config.yaml'),
+      description='Path to the autopilot parameter file'
+    ),
     DeclareLaunchArgument('x', default_value='0.0', description='X position expressed in ENU'),
     DeclareLaunchArgument('y', default_value='0.0', description='Y position expressed in ENU'),
     DeclareLaunchArgument('z', default_value='1.8', description='Z position expressed in ENU'),

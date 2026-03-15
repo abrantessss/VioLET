@@ -22,8 +22,17 @@
         offboard: "fmu/in/offboard_control_mode"
         request: "fmu/in/vehicle_command"
     controllers:
-      type: "onboard"
+      type: "mellinger"
       onboardcontroller:
         publishers:
           setpoint: "fmu/in/trajectory_setpoint"
+      mellingercontroller:
+        mass: 2.0 # Kg
+        gains:
+          kp: [5.0, 5.0, 8.0]
+          kd: [4.2, 4.2, 4.8]
+          kr: [5.0, 5.0, 5.0]
+        publishers:
+          setpoint: "fmu/in/vehicle_rates_setpoint"
+
 

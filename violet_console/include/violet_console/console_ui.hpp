@@ -16,6 +16,7 @@ const std::map<uint8_t, std::string> mode_map = {
   {0  , "TAKEOFF"},
   {1  , "LAND   "},
   {2  , "LOITER "},
+  {3  , "FOLLOW "},
   {255, "UNKWOWN"}
 };
 
@@ -55,23 +56,20 @@ struct Trajectories {
   std::array<std::string, 6> line_pos_input{"", "", "", "", "", ""};
   std::string line_speed_input{""};
 
-  Eigen::Matrix<double, 6, 1> line{Eigen::Matrix<double, 6, 1>::Zero()};
-  float line_speed{0.0};
+  Eigen::Matrix<double, 7, 1> line{Eigen::Matrix<double, 7, 1>::Zero()};
 
   // Circle UI data
   std::array<std::string, 4> circle_pos_input{"", "", "", ""};
   std::string circle_speed_input{""};
 
-  Eigen::Matrix<double, 4, 1> circle{Eigen::Matrix<double, 4, 1>::Zero()};
-  float circle_speed{0.0};
+  Eigen::Matrix<double, 5, 1> circle{Eigen::Matrix<double, 5, 1>::Zero()};
 
   
   // Lemniscate UI data
   std::array<std::string, 4> lemniscate_pos_input{"", "", "", ""};
   std::string lemniscate_speed_input{""};
 
-  Eigen::Matrix<double, 4, 1> lemniscate{Eigen::Matrix<double, 4, 1>::Zero()};
-  float lemniscate_speed{0.0};
+  Eigen::Matrix<double, 5, 1> lemniscate{Eigen::Matrix<double, 5, 1>::Zero()};
 };
 
 class ConsoleUI {

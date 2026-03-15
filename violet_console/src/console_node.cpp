@@ -87,6 +87,13 @@ void ConsoleNode::init_publishers() {
   rclcpp::Parameter kill_topic = this->get_parameter("publishers.mode.kill");
   kill_pub_ = this->create_publisher<violet_msgs::msg::Mode>
     (kill_topic.as_string(), rclcpp::SensorDataQoS());
+  /**
+   * Publisher to follow mode
+   */
+  this->declare_parameter<std::string>("publishers.mode.follow", vehicle_ns_ +  std::string("/fmu/mode/follow"));
+  rclcpp::Parameter follow_topic = this->get_parameter("publishers.mode.follow");
+  follow_pub_ = this->create_publisher<violet_msgs::msg::Trajectory>
+    (follow_topic.as_string(), rclcpp::SensorDataQoS());
 }
 
 void ConsoleNode::init_subscribers() {
@@ -150,48 +157,92 @@ void ConsoleNode::on_kill_click() {
 }
 
 void ConsoleNode::on_waypoint_click() {
-  printf("%s %s %s\n",
-       console_ui_->trajectory_data_.waypoint_pos_input[0].c_str(),
-       console_ui_->trajectory_data_.waypoint_pos_input[1].c_str(),
-       console_ui_->trajectory_data_.waypoint_pos_input[2].c_str());
-
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-
+  if (!console_ui_->trajectory_data_.waypoint_pos_input[0].empty())
+    console_ui_->trajectory_data_.waypoint[0] = std::stod(console_ui_->trajectory_data_.waypoint_pos_input[0]);
+  if (!console_ui_->trajectory_data_.waypoint_pos_input[1].empty())
+    console_ui_->trajectory_data_.waypoint[1] = std::stod(console_ui_->trajectory_data_.waypoint_pos_input[1]);
+  if (!console_ui_->trajectory_data_.waypoint_pos_input[2].empty())
+    console_ui_->trajectory_data_.waypoint[2] = std::stod(console_ui_->trajectory_data_.waypoint_pos_input[2]);
+  
+  violet_msgs::msg::Trajectory follow_msg;
+  follow_msg.path_type = 0; // Waypoint
+  follow_msg.waypoint[0] = console_ui_->trajectory_data_.waypoint[0]; 
+  follow_msg.waypoint[1] = console_ui_->trajectory_data_.waypoint[1];
+  follow_msg.waypoint[2] = console_ui_->trajectory_data_.waypoint[2];
+  follow_pub_->publish(follow_msg);
 }
 
-void ConsoleNode::on_line_click() {
-  printf("%s %s %s %s %s %s %s\n",
-       console_ui_->trajectory_data_.line_pos_input[0].c_str(),
-       console_ui_->trajectory_data_.line_pos_input[1].c_str(),
-       console_ui_->trajectory_data_.line_pos_input[2].c_str(),
-       console_ui_->trajectory_data_.line_pos_input[3].c_str(),
-       console_ui_->trajectory_data_.line_pos_input[4].c_str(),
-       console_ui_->trajectory_data_.line_pos_input[5].c_str(),
-       console_ui_->trajectory_data_.line_speed_input.c_str());
 
-  std::this_thread::sleep_for(std::chrono::seconds(1));
+void ConsoleNode::on_line_click() {
+  if (!console_ui_->trajectory_data_.line_pos_input[0].empty())
+    console_ui_->trajectory_data_.line[0] = std::stod(console_ui_->trajectory_data_.line_pos_input[0]);
+  if (!console_ui_->trajectory_data_.line_pos_input[1].empty())
+    console_ui_->trajectory_data_.line[1] = std::stod(console_ui_->trajectory_data_.line_pos_input[1]);
+  if (!console_ui_->trajectory_data_.line_pos_input[2].empty())
+    console_ui_->trajectory_data_.line[2] = std::stod(console_ui_->trajectory_data_.line_pos_input[2]);
+  if (!console_ui_->trajectory_data_.line_pos_input[3].empty())
+    console_ui_->trajectory_data_.line[3] = std::stod(console_ui_->trajectory_data_.line_pos_input[3]);
+  if (!console_ui_->trajectory_data_.line_pos_input[4].empty())
+    console_ui_->trajectory_data_.line[4] = std::stod(console_ui_->trajectory_data_.line_pos_input[4]);
+  if (!console_ui_->trajectory_data_.line_pos_input[5].empty())
+    console_ui_->trajectory_data_.line[5] = std::stod(console_ui_->trajectory_data_.line_pos_input[5]);
+  if (!console_ui_->trajectory_data_.line_speed_input.empty())
+    console_ui_->trajectory_data_.line[6] = std::stod(console_ui_->trajectory_data_.line_speed_input);
+  
+  violet_msgs::msg::Trajectory follow_msg;
+  follow_msg.path_type = 1; // Line
+  follow_msg.line[0] = console_ui_->trajectory_data_.line[0];
+  follow_msg.line[1] = console_ui_->trajectory_data_.line[1];  
+  follow_msg.line[2] = console_ui_->trajectory_data_.line[2];
+  follow_msg.line[3] = console_ui_->trajectory_data_.line[3];
+  follow_msg.line[4] = console_ui_->trajectory_data_.line[4];
+  follow_msg.line[5] = console_ui_->trajectory_data_.line[5];
+  follow_msg.line[6] = console_ui_->trajectory_data_.line[6];
+  follow_pub_->publish(follow_msg);
 }
 
 void ConsoleNode::on_circle_click() {
-  printf("%s %s %s %s %s\n",
-       console_ui_->trajectory_data_.circle_pos_input[0].c_str(),
-       console_ui_->trajectory_data_.circle_pos_input[1].c_str(),
-       console_ui_->trajectory_data_.circle_pos_input[2].c_str(),
-       console_ui_->trajectory_data_.circle_pos_input[3].c_str(),
-       console_ui_->trajectory_data_.circle_speed_input.c_str());
+  if (!console_ui_->trajectory_data_.circle_pos_input[0].empty())
+    console_ui_->trajectory_data_.circle[0] = std::stod(console_ui_->trajectory_data_.circle_pos_input[0]);
+  if (!console_ui_->trajectory_data_.circle_pos_input[1].empty())
+    console_ui_->trajectory_data_.circle[1] = std::stod(console_ui_->trajectory_data_.circle_pos_input[1]);
+  if (!console_ui_->trajectory_data_.circle_pos_input[2].empty())
+    console_ui_->trajectory_data_.circle[2] = std::stod(console_ui_->trajectory_data_.circle_pos_input[2]);
+  if (!console_ui_->trajectory_data_.circle_pos_input[3].empty())
+    console_ui_->trajectory_data_.circle[3] = std::stod(console_ui_->trajectory_data_.circle_pos_input[3]);
+  if (!console_ui_->trajectory_data_.circle_speed_input.empty())
+    console_ui_->trajectory_data_.circle[4] = std::stod(console_ui_->trajectory_data_.circle_speed_input);
 
-  std::this_thread::sleep_for(std::chrono::seconds(1));
+  violet_msgs::msg::Trajectory follow_msg;
+  follow_msg.path_type = 2; // Circle
+  follow_msg.circle[0] = console_ui_->trajectory_data_.circle[0];
+  follow_msg.circle[1] = console_ui_->trajectory_data_.circle[1];  
+  follow_msg.circle[2] = console_ui_->trajectory_data_.circle[2];
+  follow_msg.circle[3] = console_ui_->trajectory_data_.circle[3];
+  follow_msg.circle[4] = console_ui_->trajectory_data_.circle[4];
+  follow_pub_->publish(follow_msg);
 }
 
 void ConsoleNode::on_lemniscate_click() {
-  printf("%s %s %s %s %s\n",
-       console_ui_->trajectory_data_.lemniscate_pos_input[0].c_str(),
-       console_ui_->trajectory_data_.lemniscate_pos_input[1].c_str(),
-       console_ui_->trajectory_data_.lemniscate_pos_input[2].c_str(),
-       console_ui_->trajectory_data_.lemniscate_pos_input[3].c_str(),
-       console_ui_->trajectory_data_.lemniscate_speed_input.c_str());
+  if (!console_ui_->trajectory_data_.lemniscate_pos_input[0].empty())
+    console_ui_->trajectory_data_.lemniscate[0] = std::stod(console_ui_->trajectory_data_.lemniscate_pos_input[0]);
+  if (!console_ui_->trajectory_data_.lemniscate_pos_input[1].empty())
+    console_ui_->trajectory_data_.lemniscate[1] = std::stod(console_ui_->trajectory_data_.lemniscate_pos_input[1]);
+  if (!console_ui_->trajectory_data_.lemniscate_pos_input[2].empty())
+    console_ui_->trajectory_data_.lemniscate[2] = std::stod(console_ui_->trajectory_data_.lemniscate_pos_input[2]);
+  if (!console_ui_->trajectory_data_.lemniscate_pos_input[3].empty())
+    console_ui_->trajectory_data_.lemniscate[3] = std::stod(console_ui_->trajectory_data_.lemniscate_pos_input[3]);
+  if (!console_ui_->trajectory_data_.lemniscate_speed_input.empty())
+    console_ui_->trajectory_data_.lemniscate[4] = std::stod(console_ui_->trajectory_data_.lemniscate_speed_input);
 
-  std::this_thread::sleep_for(std::chrono::seconds(1));
+  violet_msgs::msg::Trajectory follow_msg;
+  follow_msg.path_type = 3; // Lemniscata
+  follow_msg.lemniscate[0] = console_ui_->trajectory_data_.lemniscate[0];
+  follow_msg.lemniscate[1] = console_ui_->trajectory_data_.lemniscate[1];  
+  follow_msg.lemniscate[2] = console_ui_->trajectory_data_.lemniscate[2];
+  follow_msg.lemniscate[3] = console_ui_->trajectory_data_.lemniscate[3];
+  follow_msg.lemniscate[4] = console_ui_->trajectory_data_.lemniscate[4];
+  follow_pub_->publish(follow_msg);
 }
 
 void ConsoleNode::on_battery_callback(const violet_msgs::msg::Battery::ConstSharedPtr msg) {

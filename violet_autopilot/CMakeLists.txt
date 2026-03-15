@@ -31,6 +31,8 @@ add_executable(${PROJECT_NAME}
   # The main ROS2 node implementation
   src/main.cpp
   src/autopilot.cpp
+  src/onboard_controller.cpp
+  src/mellinger_controller.cpp
 )
 
 # Add the ROS2 packages to link against
