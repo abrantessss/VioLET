@@ -22,8 +22,12 @@
         offboard: "fmu/in/offboard_control_mode"
         request: "fmu/in/vehicle_command"
     controllers:
-      type: "onboard"
-      onboardcontroller:
+      type: "los"
+      loscontroller:
+        gains:
+          k1: 2.0
+          k2: 4.0
         publishers:
-          setpoint: "fmu/in/trajectory_setpoint"
+          lateral: "fmu/in/fixed_wing_lateral_setpoint"
+          longitudinal: "fmu/in/fixed_wing_longitudinal_setpoint"
 

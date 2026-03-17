@@ -34,6 +34,8 @@ namespace autopilot {
     using UniquePtr = std::unique_ptr<Controller>;
     using WeakPtr = std::weak_ptr<Controller>;
 
+      virtual ~Controller() = default;
+
       struct Config {
         rclcpp::Node::SharedPtr node;
       };
