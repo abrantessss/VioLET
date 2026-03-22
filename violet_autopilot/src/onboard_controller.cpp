@@ -79,12 +79,11 @@ namespace autopilot {
       const double a = path_.lemniscate_a;
       const Eigen::Vector3d& c = path_.lemniscate_c;
 
-      const double s = std::sin(gamma_);
+      const double s  = std::sin(gamma_);
       const double cg = std::cos(gamma_);
-      const double denom = 1.0 + s * s;
 
-      pd << c.x() + a * cg / denom,
-            c.y() + a * s * cg / denom,
+      pd << c.x() + a * cg,
+            c.y() + a * s * cg,
             c.z();
 
       ep = p - pd;

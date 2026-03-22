@@ -1,15 +1,15 @@
-#include "los_controller.hpp"
+#include "los2_controller.hpp"
 
 namespace autopilot {
   
-  LOSController::~LOSController() {}
+  LOS2Controller::~LOS2Controller() {}
 
-  void LOSController::initialize() {
-    node_->declare_parameter<std::string>("controllers.loscontroller.publishers.longitudinal", "fmu/in/fixed_wing_longitudinal_setpoint");
-    lon_pub_ = node_->create_publisher<px4_msgs::msg::FixedWingLongitudinalSetpoint>(node_->get_parameter("controllers.loscontroller.publishers.longitudinal").as_string(), rclcpp::SensorDataQoS());
+  void LOS2Controller::initialize() {
+    node_->declare_parameter<std::string>("controllers.los2controller.publishers.longitudinal", "fmu/in/fixed_wing_longitudinal_setpoint");
+    lon_pub_ = node_->create_publisher<px4_msgs::msg::FixedWingLongitudinalSetpoint>(node_->get_parameter("controllers.los2controller.publishers.longitudinal").as_string(), rclcpp::SensorDataQoS());
 
-    node_->declare_parameter<std::string>("controllers.loscontroller.publishers.lateral", "fmu/in/fixed_wing_lateral_setpoint");
-    lat_pub_ = node_->create_publisher<px4_msgs::msg::FixedWingLateralSetpoint>(node_->get_parameter("controllers.loscontroller.publishers.lateral").as_string(), rclcpp::SensorDataQoS());
+    node_->declare_parameter<std::string>("controllers.los2controller.publishers.lateral", "fmu/in/fixed_wing_lateral_setpoint");
+    lat_pub_ = node_->create_publisher<px4_msgs::msg::FixedWingLateralSetpoint>(node_->get_parameter("controllers.los2controller.publishers.lateral").as_string(), rclcpp::SensorDataQoS());
     
     node_->declare_parameter<std::string>("publishers.mode.offboard", "fmu/in/offboard_control_mode");
     offboard_pub_ = node_->create_publisher<px4_msgs::msg::OffboardControlMode>(node_->get_parameter("publishers.mode.offboard").as_string(), rclcpp::SensorDataQoS());
@@ -18,21 +18,21 @@ namespace autopilot {
     mode_pub_ = node_->create_publisher<px4_msgs::msg::VehicleCommand>(node_->get_parameter("publishers.mode.request").as_string(), rclcpp::SensorDataQoS());
 
     // Load Gains
-    node_->declare_parameter<double>("controllers.loscontroller.gains.k1", 1.0);
-    node_->declare_parameter<double>("controllers.loscontroller.gains.k2", 1.0);
+    node_->declare_parameter<double>("controllers.los2controller.gains.k1", 1.0);
+    node_->declare_parameter<double>("controllers.los2controller.gains.k2", 1.0);
 
-    k1_ = node_->get_parameter("controllers.loscontroller.gains.k1").as_double();
-    k2_ = node_->get_parameter("controllers.loscontroller.gains.k2").as_double();
+    k1_ = node_->get_parameter("controllers.los2controller.gains.k1").as_double();
+    k2_ = node_->get_parameter("controllers.los2controller.gains.k2").as_double();
 
     // Log Gains 
-    RCLCPP_INFO_STREAM(node_->get_logger(), "LOSController vehicle gain: k1 = " << k1_);
-    RCLCPP_INFO_STREAM(node_->get_logger(), "LOSController vehicle gain: k2 = " << k2_);
+    RCLCPP_INFO_STREAM(node_->get_logger(), "LOS2Controller vehicle gain: k1 = " << k1_);
+    RCLCPP_INFO_STREAM(node_->get_logger(), "LOS2Controller vehicle gain: k2 = " << k2_);
 
-    // Log that the LOSController was initialized
-    RCLCPP_INFO(node_->get_logger(), "LOSController initialized");
+    // Log that the LOS2Controller was initialized
+    RCLCPP_INFO(node_->get_logger(), "LOS2Controller initialized");
   }
 
-  void LOSController::set_position(const double dt, const Eigen::Vector3d& p) {
+  void LOS2Controller::set_position(const double dt, const Eigen::Vector3d& p) {
     Eigen::Vector3d pd = Eigen::Vector3d::Zero();
     Eigen::Vector3d ep = Eigen::Vector3d::Zero();
     Eigen::Vector3d dpd_dgamma = Eigen::Vector3d::Zero();
@@ -90,10 +90,12 @@ namespace autopilot {
     Eigen::Vector3d q = dpd_dgamma;
     q = q/q.norm();
 
-    Eigen::Vector3d aux = -k1_*ep + k2_*q;
+    Eigen::Matrix3d PIq = Eigen::Matrix3d::Identity() - q*q.transpose();
+
+    Eigen::Vector3d aux = -k1_*PIq*ep + k2_*q;
     Eigen::Vector3d h = aux/aux.norm();
 
-    gamma_dot = k2_*Va/(aux.norm()* dpd_dgamma.norm());
+    gamma_dot = k1_ * Va * q.dot(ep) / (aux.norm() * dpd_dgamma.norm()) + Va * k2_ / (aux.norm() * dpd_dgamma.norm());
 
     gamma_ += gamma_dot * dt;
 
@@ -134,7 +136,7 @@ namespace autopilot {
 
   }
 
-  void LOSController::set_attitude_rate(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v, const Eigen::Vector3d& eta) {
+  void LOS2Controller::set_attitude_rate(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v, const Eigen::Vector3d& eta) {
     (void)dt;
     (void)p;
     (void)v;
@@ -143,10 +145,10 @@ namespace autopilot {
       node_->get_logger(),
       *node_->get_clock(),
       5000,
-      "LOSController does not support attitude-rate control");
+      "LOS2Controller does not support attitude-rate control");
   }
 
-  void LOSController::set_path(const int type, const double* path) {
+  void LOS2Controller::set_path(const int type, const double* path) {
     path_.type = type;
     gamma_ = 0.0;
 

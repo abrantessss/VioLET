@@ -5,6 +5,7 @@
 #include "onboard_controller.hpp"
 #include "mellinger_controller.hpp"
 #include "los_controller.hpp"
+#include "los2_controller.hpp"
 #include <Eigen/Dense>
 
 // Console mode messages

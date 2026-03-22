@@ -144,15 +144,14 @@ namespace autopilot {
     else {      // Lemniscate
       // Lemniscate
       const double vd = path_.lemniscate_v;
-      const double a = path_.lemniscate_a;
+      const double a  = path_.lemniscate_a;
       const Eigen::Vector3d& c = path_.lemniscate_c;
 
-      const double s = std::sin(gamma_);
+      const double s  = std::sin(gamma_);
       const double cg = std::cos(gamma_);
-      const double denom = 1.0 + s * s;
 
-      pd << c.x() + a * cg / denom,
-            c.y() + a * s * cg / denom,
+      pd << c.x() + a * cg,
+            c.y() + a * s * cg,
             c.z();
 
       ep = p - pd;
@@ -168,17 +167,17 @@ namespace autopilot {
 
       gamma_ += gamma_dot * dt;
 
-      pdd  << (a*std::sin(gamma_)*(std::pow(std::sin(gamma_), 2)-3)/std::pow((1+std::pow(std::sin(gamma_), 2)), 2))*gamma_dot,
-              (a*(1-3*std::pow(std::sin(gamma_), 2))/std::pow((1+std::pow(std::sin(gamma_),2)),2))*gamma_dot,
-              0;
+      pdd << -a * s * gamma_dot,
+              a * (cg * cg - s * s) * gamma_dot,
+              0.0;
 
-      pddd << (a * std::cos(gamma_) * (-std::pow(std::sin(gamma_),4) + 12*std::pow(std::sin(gamma_),2) - 3) / std::pow(1 + std::pow(std::sin(gamma_),2), 3)) * std::pow(gamma_dot,2) + (a * std::sin(gamma_) * (std::pow(std::sin(gamma_),2) - 3) / std::pow(1 + std::pow(std::sin(gamma_),2), 2)) * gamma_ddot,
-              (a * 2*std::sin(gamma_)*std::cos(gamma_) * (3*std::pow(std::sin(gamma_),2) - 5) / std::pow(1 + std::pow(std::sin(gamma_),2), 3)) * std::pow(gamma_dot,2) + (a * (1 - 3*std::pow(std::sin(gamma_),2)) / std::pow(1 + std::pow(std::sin(gamma_),2), 2)) * gamma_ddot,
-              0;
+      pddd << -a * cg * gamma_dot * gamma_dot - a * s * gamma_ddot,
+              -4.0 * a * s * cg * gamma_dot * gamma_dot + a * (cg * cg - s * s) * gamma_ddot,
+              0.0;
 
-      pdddd << (a * std::sin(gamma_) * (-std::pow(std::sin(gamma_),6) + 43*std::pow(std::sin(gamma_),4) - 103*std::pow(std::sin(gamma_),2) + 45) / std::pow(1 + std::pow(std::sin(gamma_),2),4)) * std::pow(gamma_dot,3) + 3 * (a * std::cos(gamma_) * (-std::pow(std::sin(gamma_),4) + 12*std::pow(std::sin(gamma_),2) - 3) / std::pow(1 + std::pow(std::sin(gamma_),2),3)) * gamma_dot * gamma_ddot + (a * std::sin(gamma_) * (std::pow(std::sin(gamma_),2) - 3) / std::pow(1 + std::pow(std::sin(gamma_),2),2)) * gamma_dddot,
-               (2*a * (6*std::pow(std::sin(gamma_),6) - 41*std::pow(std::sin(gamma_),4) + 44*std::pow(std::sin(gamma_),2) - 5) / std::pow(1 + std::pow(std::sin(gamma_),2),4)) * std::pow(gamma_dot,3) + 3 * (a * 2*std::sin(gamma_)*std::cos(gamma_) * (3*std::pow(std::sin(gamma_),2) - 5) / std::pow(1 + std::pow(std::sin(gamma_),2),3)) * gamma_dot * gamma_ddot + (a * (1 - 3*std::pow(std::sin(gamma_),2)) / std::pow(1 + std::pow(std::sin(gamma_),2),2)) * gamma_dddot,
-               0;
+      pdddd << a * s * std::pow(gamma_dot, 3) - 3.0 * a * cg * gamma_dot * gamma_ddot - a * s * gamma_dddot,
+               -4.0 * a * (cg * cg - s * s) * std::pow(gamma_dot, 3) - 12.0 * a * s * cg * gamma_dot * gamma_ddot + a * (cg * cg - s * s) * gamma_dddot,
+                0.0;
     }
     
     // Compute velocity error
@@ -204,10 +203,30 @@ namespace autopilot {
     Rd.col(1) = Ybd;
     Rd.col(2) = Zbd;
 
+    Eigen::Vector3d Ycd;
+    Ycd << -std::cos(0.0), -std::sin(0.0), 0.0;
+    Ycd *= 0;
+
+    Eigen::Vector3d az = mass_ * (g_ - u);
+    Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+
+    Eigen::Vector3d Zbdd = -mass_ / az.norm() * (I - (az * az.transpose()) / az.squaredNorm()) * pdddd;
+
+    Eigen::Vector3d ax = Yc.cross(Zbd);
+    Eigen::Vector3d Xbdd = 1.0 / ax.norm() * (I - (ax * ax.transpose()) / ax.squaredNorm()) * (Ycd.cross(Zbd) + Yc.cross(Zbdd));
+
+    Eigen::Vector3d Ybdd = Zbdd.cross(Xbd) + Zbd.cross(Xbdd);
+
+    Eigen::Matrix3d Rdd;
+    Rdd.col(0) = Xbdd;
+    Rdd.col(1) = Ybdd;
+    Rdd.col(2) = Zbdd;
+
+    // vee map
+    Eigen::Matrix3d Omega_d = Rd.transpose() * Rdd;
+
     Eigen::Vector3d wd;
-    wd[0] = mass_ / T * Ybd.dot(pdddd);
-    wd[1] = -mass_ / T * Xbd.dot(pdddd);
-    wd[2] = 0;
+    wd << Omega_d(2,1), Omega_d(0,2), Omega_d(1,0);
 
     Eigen::Matrix3d Re = (Rd.transpose() * R) - (R.transpose() * Rd);
 

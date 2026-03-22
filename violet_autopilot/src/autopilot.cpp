@@ -19,7 +19,7 @@ void Autopilot::update() {
       double dt = tnow_ - tprev_;
       tprev_ = tnow_;
       
-      if ((controller_type_ == "onboard") || (controller_type_ == "los")) {
+      if ((controller_type_ == "onboard")  || (controller_type_ == "los") || (controller_type_ == "los2")) {
         controller_->set_position(dt, state_.position);
       } else if (controller_type_ == "mellinger") {
         controller_->set_attitude_rate(dt, state_.position, state_.inertial_velocity, state_.attitude);
@@ -42,6 +42,8 @@ void Autopilot::init_controller() {
     controller_ = std::make_unique<autopilot::MellingerController>();
   } else if (controller_type_ == "los") {
     controller_ = std::make_unique<autopilot::LOSController>();
+  } else if (controller_type_ == "los2") {
+    controller_ = std::make_unique<autopilot::LOS2Controller>();
   } else {
     throw std::runtime_error("Unknown controller type: " + controller_type_);
   }
