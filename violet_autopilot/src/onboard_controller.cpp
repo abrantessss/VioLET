@@ -81,9 +81,10 @@ namespace autopilot {
 
       const double s  = std::sin(gamma_);
       const double cg = std::cos(gamma_);
+      const double denom = 1.0 + s * s;
 
-      pd << c.x() + a * cg,
-            c.y() + a * s * cg,
+      pd << c.x() + a * cg / denom,
+            c.y() + a * s * cg / denom,
             c.z();
 
       ep = p - pd;

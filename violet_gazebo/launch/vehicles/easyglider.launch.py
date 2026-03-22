@@ -27,7 +27,8 @@ def generate_launch_description():
             'P': '0',
             'Y': '-1.5781',
             'vehicle_id': '1',
-            'vehicle_model': 'plane',
+            'vehicle_model': 'easyglider',
+            'gazebo_dir': get_package_share_directory('violet_gazebo'),
             'config_yaml': LaunchConfiguration('config_yaml')
         }.items()
     )

@@ -18,7 +18,7 @@ def generate_launch_description():
   )
   
   vehicle_launch_file = IncludeLaunchDescription(
-    PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('violet_gazebo'), 'launch/vehicles/plane.launch.py')),
+    PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('violet_gazebo'), 'launch/vehicles/easyglider.launch.py')),
     launch_arguments={
       'config_yaml': LaunchConfiguration('config_yaml')
     }.items()
@@ -26,7 +26,7 @@ def generate_launch_description():
      
   config_yaml_arg = DeclareLaunchArgument(
       'config_yaml',
-      default_value=os.path.join(get_package_share_directory('violet'), 'config', 'plane.yaml')
+      default_value=os.path.join(get_package_share_directory('violet'), 'config', 'easyglider.yaml')
   )
      
   return LaunchDescription([
