@@ -13,8 +13,15 @@ def generate_launch_description():
   # Get world model path
   world = os.path.join(get_package_share_directory('violet_gazebo'), 'worlds', 'helipad.world')
 
+  pkg_dir = get_package_share_directory('violet')
+  default_yaml = os.path.join(pkg_dir, 'config', 'easyglider.yaml')
+
   return LaunchDescription([
-    DeclareLaunchArgument('config_yaml'),
+    DeclareLaunchArgument(
+      'config_yaml',
+      default_value=default_yaml,
+      description='Path to config YAML file'
+    ),
     
     # Launch default vehicle launch file
     IncludeLaunchDescription(
