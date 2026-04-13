@@ -1,0 +1,10 @@
+std_msgs/Header header
+float32[3] position
+float32[3] inertial_velocity
+float32[3] attitude
+float32[3] angular_velocity
+float32 gamma
+float32 vd
+float32[3] pd
+float32[3] dpd_dgamma
+float32[] gains

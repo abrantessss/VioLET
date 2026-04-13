@@ -29,7 +29,7 @@
       mellingercontroller:
         mass: 2.0 # Kg
         gains:
-          kp: [5.0, 5.0, 8.0]
+          kp: [2.5, 2.5, 8.0]
           kd: [4.2, 4.2, 4.8]
           kr: [5.0, 5.0, 5.0]
         publishers:

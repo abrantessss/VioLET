@@ -58,10 +58,14 @@ namespace autopilot {
     double gamma_dot = 0.0;
     double gamma_ddot = 0.0;
     double gamma_dddot = 0.0;
+    //constexpr double kMinDpdDgammaNorm = 1e-6;
+    constexpr double k = 0.0005; // smoothness factor
+    double vd = 0.0;
     Eigen::Vector3d pd = Eigen::Vector3d::Zero();
     Eigen::Vector3d pdd = Eigen::Vector3d::Zero();
     Eigen::Vector3d pddd = Eigen::Vector3d::Zero();
     Eigen::Vector3d pdddd = Eigen::Vector3d::Zero();
+    Eigen::Vector3d dpd_dgamma = Eigen::Vector3d::Zero();
     Eigen::Vector3d ep = Eigen::Vector3d::Zero();
     
     Eigen::Matrix3d R =( 
@@ -77,37 +81,39 @@ namespace autopilot {
     }
     else if (path_.type == 1) {
       // Line
-      const double vd = path_.line_v;
+      vd = path_.line_v;
       Eigen::Vector3d p0 = path_.line_p0;
       Eigen::Vector3d p1 = path_.line_p1;
+      dpd_dgamma = p1 - p0;
+      //const double dpd_dgamma_norm = std::max(dpd_dgamma.norm(), kMinDpdDgammaNorm);
 
-      pd = p0 + gamma_ * (p1 - p0);
+      pd = p0 + gamma_ * dpd_dgamma;
     
       ep = p - pd;
 
       const double ep_norm = ep.norm();
-      if (ep_norm >= 1.5) {
-        gamma_dot = 0.0;
-      } else if (ep_norm >= 0.5) {
-        gamma_dot = vd * std::exp(1.0 + 1.0 / (((ep_norm - 0.5) * (ep_norm - 0.5)) - 1.0));
-      } else {
-        gamma_dot = vd;
-      }
+      gamma_dot = vd * std::exp(-k * std::pow(ep_norm,2));
+
+      Eigen::Vector3d ep_dot = v - gamma_dot * dpd_dgamma;
+      gamma_ddot = -2.0 * k * gamma_dot * ep.dot(ep_dot);
+      gamma_dddot = -2.0 * k * (gamma_ddot * ep.dot(ep_dot) + gamma_dot * ep_dot.squaredNorm());
 
       gamma_ += gamma_dot * dt;
 
       if (gamma_ >= 1.0) {
         gamma_ = 1.0;
         gamma_dot = 0.0;
+        gamma_ddot = 0.0;
+        gamma_dddot = 0.0;
       }
 
-      pdd = (p1 - p0) * gamma_dot;
-      pddd = (p1 - p0) * gamma_ddot;
-      pdddd = (p1 - p0) * gamma_dddot;
+      pdd = dpd_dgamma * gamma_dot;
+      pddd = dpd_dgamma * gamma_ddot;
+      pdddd = dpd_dgamma * gamma_dddot;
     }
     else if (path_.type == 2) {
       // Circle
-      const double vd = path_.circle_v;
+      vd = path_.circle_v;
       const double r = path_.circle_R;
       const Eigen::Vector3d& c = path_.circle_c;
 
@@ -117,14 +123,16 @@ namespace autopilot {
 
       ep = p - pd;
 
+      dpd_dgamma << -r * std::sin(gamma_),
+                     r * std::cos(gamma_),
+                     0.0;
+      //const double dpd_dgamma_norm = std::max(std::abs(r), kMinDpdDgammaNorm);
       const double ep_norm = ep.norm();
-      if (ep_norm >= 1.5) {
-        gamma_dot = 0.0;
-      } else if (ep_norm >= 0.5) {
-        gamma_dot = vd * std::exp(1.0 + 1.0 / (((ep_norm - 0.5) * (ep_norm - 0.5)) - 1.0));
-      } else {
-        gamma_dot = vd;
-      }
+      gamma_dot = vd * std::exp(-k * std::pow(ep_norm,2));
+
+      Eigen::Vector3d ep_dot = v - gamma_dot * dpd_dgamma;
+      gamma_ddot = -2.0 * k * gamma_dot * ep.dot(ep_dot);
+      gamma_dddot = -2.0 * k * (gamma_ddot * ep.dot(ep_dot) + gamma_dot * ep_dot.squaredNorm());
 
       gamma_ += gamma_dot * dt;
 
@@ -143,7 +151,7 @@ namespace autopilot {
     }
     else {      // Lemniscate
       // Lemniscate
-      const double vd = path_.lemniscate_v;
+      vd = path_.lemniscate_v;
       const double a  = path_.lemniscate_a;
       const Eigen::Vector3d& c = path_.lemniscate_c;
 
@@ -157,14 +165,16 @@ namespace autopilot {
 
       ep = p - pd;
 
+      dpd_dgamma << a * std::sin(gamma_) * (std::pow(std::sin(gamma_), 2) - 3) / std::pow(1 + std::pow(std::sin(gamma_), 2), 2),
+                    a * (1 - 3 * std::pow(std::sin(gamma_), 2)) / std::pow(1 + std::pow(std::sin(gamma_), 2), 2),
+                    0.0;
+      //const double dpd_dgamma_norm = std::max(dpd_dgamma.norm(), kMinDpdDgammaNorm);
       const double ep_norm = ep.norm();
-      if (ep_norm >= 1.5) {
-        gamma_dot = 0.0;
-      } else if (ep_norm >= 0.5) {
-        gamma_dot = vd * std::exp(1.0 + 1.0 / (((ep_norm - 0.5) * (ep_norm - 0.5)) - 1.0));
-      } else {
-        gamma_dot = vd;
-      }
+      gamma_dot = vd * std::exp(-k * std::pow(ep_norm,2));
+
+      Eigen::Vector3d ep_dot = v - gamma_dot * dpd_dgamma;
+      gamma_ddot = -2.0 * k * gamma_dot * ep.dot(ep_dot);
+      gamma_dddot = -2.0 * k * (gamma_ddot * ep.dot(ep_dot) + gamma_dot * ep_dot.squaredNorm());
 
       gamma_ += gamma_dot * dt;
 
@@ -180,6 +190,23 @@ namespace autopilot {
                (2*a * (6*std::pow(std::sin(gamma_),6) - 41*std::pow(std::sin(gamma_),4) + 44*std::pow(std::sin(gamma_),2) - 5) / std::pow(1 + std::pow(std::sin(gamma_),2),4)) * std::pow(gamma_dot,3) + 3 * (a * 2*std::sin(gamma_)*std::cos(gamma_) * (3*std::pow(std::sin(gamma_),2) - 5) / std::pow(1 + std::pow(std::sin(gamma_),2),3)) * gamma_dot * gamma_ddot + (a * (1 - 3*std::pow(std::sin(gamma_),2)) / std::pow(1 + std::pow(std::sin(gamma_),2),2)) * gamma_dddot,
                0;
     }
+
+    publish_plot_data(
+      gamma_dot,
+      vd,
+      pd,
+      dpd_dgamma,
+      {
+        static_cast<float>(kp_(0, 0)),
+        static_cast<float>(kp_(1, 1)),
+        static_cast<float>(kp_(2, 2)),
+        static_cast<float>(kd_(0, 0)),
+        static_cast<float>(kd_(1, 1)),
+        static_cast<float>(kd_(2, 2)),
+        static_cast<float>(kr_(0, 0)),
+        static_cast<float>(kr_(1, 1)),
+        static_cast<float>(kr_(2, 2)),
+      });
     
     // Compute velocity error
     Eigen::Vector3d ev = v - pdd;

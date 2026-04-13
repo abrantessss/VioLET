@@ -36,6 +36,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
   # Trajectory Message
   "msg/Trajectory.msg"
+  "msg/AutopilotPlot.msg"
+  "msg/PlotData.msg"
   
   # Mode Services
   "srv/Mode.srv"

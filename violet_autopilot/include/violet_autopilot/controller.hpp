@@ -1,8 +1,11 @@
 #pragma once
 
+#include <vector>
+
 #include<Eigen/Dense>
 
 #include"rclcpp/rclcpp.hpp"
+#include "violet_msgs/msg/autopilot_plot.hpp"
 
 struct Path {
   int type;
@@ -44,6 +47,10 @@ namespace autopilot {
         // init base class
         node_ = config.node;
 
+        plot_pub_ = node_->create_publisher<violet_msgs::msg::AutopilotPlot>(
+          "fmu/telemetry/autopilot_plot",
+          rclcpp::SensorDataQoS());
+
         initialize();
       }
 
@@ -58,7 +65,29 @@ namespace autopilot {
     virtual void set_path(const int type, const double* path) = 0;
 
     protected:
+      inline void publish_plot_data(
+        const double gamma,
+        const double vd,
+        const Eigen::Vector3d & pd,
+        const Eigen::Vector3d & dpd_dgamma,
+        const std::vector<float> & gains)
+      {
+        violet_msgs::msg::AutopilotPlot msg;
+        msg.header.stamp = node_->get_clock()->now();
+        msg.gamma = static_cast<float>(gamma);
+        msg.vd = static_cast<float>(vd);
+        msg.pd[0] = static_cast<float>(pd.x());
+        msg.pd[1] = static_cast<float>(pd.y());
+        msg.pd[2] = static_cast<float>(pd.z());
+        msg.dpd_dgamma[0] = static_cast<float>(dpd_dgamma.x());
+        msg.dpd_dgamma[1] = static_cast<float>(dpd_dgamma.y());
+        msg.dpd_dgamma[2] = static_cast<float>(dpd_dgamma.z());
+        msg.gains = gains;
+        plot_pub_->publish(msg);
+      }
+
       rclcpp::Node::SharedPtr node_{nullptr};
       Path path_;
+      rclcpp::Publisher<violet_msgs::msg::AutopilotPlot>::SharedPtr plot_pub_{nullptr};
   };
 }

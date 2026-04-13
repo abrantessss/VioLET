@@ -21,7 +21,10 @@ namespace autopilot {
   void OnboardController::set_position(const double dt, const Eigen::Vector3d& p) {
     Eigen::Vector3d pd = Eigen::Vector3d::Zero();
     Eigen::Vector3d ep = Eigen::Vector3d::Zero();
+    Eigen::Vector3d dpd_dgamma = Eigen::Vector3d::Zero();
     double gamma_dot = 0.0;
+    double vd = 0.0;
+    constexpr double k = 0.001; // smoothness factor
 
     if (path_.type == 0) {
       // Waypoint
@@ -31,51 +34,43 @@ namespace autopilot {
     }
     else if (path_.type == 1) {
       // Line
-      const double vd = path_.line_v;
+      vd = path_.line_v;
 
       pd = path_.line_p0 + gamma_ * (path_.line_p1 - path_.line_p0);
+      dpd_dgamma = path_.line_p1 - path_.line_p0;
       ep = p - pd;
 
       const double ep_norm = ep.norm();
 
-      if (ep_norm >= 1.5) {
-        gamma_dot = 0.0;
-      } else if (ep_norm >= 0.5) {
-        gamma_dot = vd * std::exp(1.0 + 1.0 / (((ep_norm - 0.5) * (ep_norm - 0.5)) - 1.0));
-      } else {
-        gamma_dot = vd;
-      }
+      gamma_dot = vd * std::exp(-k * std::pow(ep_norm,2));
 
       gamma_ += gamma_dot * dt;
       gamma_ = std::clamp(gamma_, 0.0, 1.0);
     }
     else if (path_.type == 2) {
       // Circle
-      const double vd = path_.circle_v;
+      vd = path_.circle_v;
       const double R = path_.circle_R;
       const Eigen::Vector3d& c = path_.circle_c;
 
       pd << c.x() + R * std::cos(gamma_),
             c.y() + R * std::sin(gamma_),
             c.z();
+      dpd_dgamma << -R * std::sin(gamma_),
+                    R * std::cos(gamma_),
+                    0.0;
 
       ep = p - pd;
 
       const double ep_norm = ep.norm();
 
-      if (ep_norm >= 1.5) {
-        gamma_dot = 0.0;
-      } else if (ep_norm >= 0.5) {
-        gamma_dot = vd * std::exp(1.0 + 1.0 / (((ep_norm - 0.5) * (ep_norm - 0.5)) - 1.0));
-      } else {
-        gamma_dot = vd;
-      }
+      gamma_dot = vd * std::exp(-k * std::pow(ep_norm,2));
 
       gamma_ += gamma_dot * dt;
     }
     else {
       // Lemniscate
-      const double vd = path_.lemniscate_v;
+      vd = path_.lemniscate_v;
       const double a = path_.lemniscate_a;
       const Eigen::Vector3d& c = path_.lemniscate_c;
 
@@ -86,21 +81,20 @@ namespace autopilot {
       pd << c.x() + a * cg / denom,
             c.y() + a * s * cg / denom,
             c.z();
+      dpd_dgamma << a * std::sin(gamma_) * (std::pow(std::sin(gamma_), 2) - 3) / std::pow(1 + std::pow(std::sin(gamma_), 2), 2),
+                    a * (1 - 3 * std::pow(std::sin(gamma_), 2)) / std::pow(1 + std::pow(std::sin(gamma_), 2), 2),
+                    0.0;
 
       ep = p - pd;
 
       const double ep_norm = ep.norm();
 
-      if (ep_norm >= 1.5) {
-        gamma_dot = 0.0;
-      } else if (ep_norm >= 0.5) {
-        gamma_dot = vd * std::exp(1.0 + 1.0 / (((ep_norm - 0.5) * (ep_norm - 0.5)) - 1.0));
-      } else {
-        gamma_dot = vd;
-      }
+      gamma_dot = vd * std::exp(-k * std::pow(ep_norm,2));
 
       gamma_ += gamma_dot * dt;
     }
+
+    publish_plot_data(gamma_dot, vd, pd, dpd_dgamma, {});
 
     const uint64_t now_us = node_->get_clock()->now().nanoseconds() / 1000;
 

@@ -91,6 +91,13 @@
     <gui fullscreen='0'>
       <camera name='user_camera'>
         <pose>-4.71642 -7.84946 5.36399 0 0.437796 1.06626</pose>
+        <track_visual>
+          <name>drone1</name>
+          <static>true</static>
+          <use_model_frame>true</use_model_frame>
+          <xyz>-6 0 3</xyz>
+          <inherit_yaw>true</inherit_yaw>
+        </track_visual>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>

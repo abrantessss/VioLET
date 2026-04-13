@@ -43,6 +43,7 @@ namespace autopilot {
       // Waypoint
       Va = 14; // m/s
       pd = path_.waypoint;
+      publish_plot_data(gamma_dot, 0.0, pd, dpd_dgamma, {static_cast<float>(k1_), static_cast<float>(k2_)});
       return;
     }
     else if (path_.type == 1) {
@@ -99,6 +100,8 @@ namespace autopilot {
     gamma_dot = k1_ * Va * q.dot(ep) / (aux.norm() * dpd_dgamma.norm()) + Va * k2_ / (aux.norm() * dpd_dgamma.norm());
 
     gamma_ += gamma_dot * dt;
+
+    publish_plot_data(gamma_dot, Va, pd, dpd_dgamma, {static_cast<float>(k1_), static_cast<float>(k2_)});
 
     double gamma_cmd = std::asin(-h(2));
     double chi_cmd = std::atan2(h(1), h(0));
