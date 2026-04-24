@@ -13,28 +13,30 @@ class EasyGliderMissionNode(Node):
         super().__init__(node_name)
 
         self.mission_label = mission_label
+        self.declare_parameter('vehicle_ns', 'drone1')
+        self.vehicle_ns = self.get_parameter('vehicle_ns').get_parameter_value().string_value
+        vehicle_prefix = f'/{self.vehicle_ns}'
 
-        self.arm_pub = self.create_publisher(Mode, '/drone1/fmu/mode/arm', qos_profile_sensor_data)
-        self.takeoff_pub = self.create_publisher(Mode, '/drone1/fmu/mode/takeoff', qos_profile_sensor_data)
-        self.land_pub = self.create_publisher(Mode, '/drone1/fmu/mode/land', qos_profile_sensor_data)
-        # The easyglider config maps the hold command on the orbit topic.
-        self.loiter_pub = self.create_publisher(Mode, '/drone1/fmu/mode/orbit', qos_profile_sensor_data)
-        self.follow_pub = self.create_publisher(Trajectory, '/drone1/fmu/mode/follow', qos_profile_sensor_data)
+        self.arm_pub = self.create_publisher(Mode, f'{vehicle_prefix}/fmu/mode/arm', qos_profile_sensor_data)
+        self.takeoff_pub = self.create_publisher(Mode, f'{vehicle_prefix}/fmu/mode/takeoff', qos_profile_sensor_data)
+        self.land_pub = self.create_publisher(Mode, f'{vehicle_prefix}/fmu/mode/land', qos_profile_sensor_data)
+        self.loiter_pub = self.create_publisher(Mode, f'{vehicle_prefix}/fmu/mode/loiter', qos_profile_sensor_data)
+        self.follow_pub = self.create_publisher(Trajectory, f'{vehicle_prefix}/fmu/mode/follow', qos_profile_sensor_data)
         self.plot_data_pub = self.create_publisher(
             PlotData,
-            '/drone1/plots/data',
+            f'{vehicle_prefix}/plots/data',
             qos_profile_sensor_data,
         )
 
         self.state_sub = self.create_subscription(
             State,
-            '/drone1/fmu/telemetry/state',
+            f'{vehicle_prefix}/fmu/telemetry/state',
             self.state_cb,
             qos_profile_sensor_data,
         )
         self.autopilot_plot_sub = self.create_subscription(
             AutopilotPlot,
-            '/drone1/fmu/telemetry/autopilot_plot',
+            f'{vehicle_prefix}/fmu/telemetry/autopilot_plot',
             self.autopilot_plot_cb,
             qos_profile_sensor_data,
         )
@@ -75,7 +77,7 @@ class EasyGliderMissionNode(Node):
             return
 
         if not self.plotting_started:
-            self.get_logger().info('Publishing merged plot telemetry on /drone1/plots/data')
+            self.get_logger().info(f'Publishing merged plot telemetry on /{self.vehicle_ns}/plots/data')
             self.plotting_started = True
 
         elapsed = max(0.0, time.time() - self.done_start_time)

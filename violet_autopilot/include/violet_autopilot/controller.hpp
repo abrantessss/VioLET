@@ -41,11 +41,13 @@ namespace autopilot {
 
       struct Config {
         rclcpp::Node::SharedPtr node;
+        int vehicle_id{1};
       };
       
       inline void initialize_controller(const Controller::Config & config) {
         // init base class
         node_ = config.node;
+        vehicle_id_ = config.vehicle_id;
 
         plot_pub_ = node_->create_publisher<violet_msgs::msg::AutopilotPlot>(
           "fmu/telemetry/autopilot_plot",
@@ -87,6 +89,7 @@ namespace autopilot {
       }
 
       rclcpp::Node::SharedPtr node_{nullptr};
+      int vehicle_id_{1};
       Path path_;
       rclcpp::Publisher<violet_msgs::msg::AutopilotPlot>::SharedPtr plot_pub_{nullptr};
   };

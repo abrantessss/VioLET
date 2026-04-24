@@ -106,12 +106,11 @@
       <static>1</static>
       <link name='helipad_link'>
         <collision name='helipad_collision'>
-          <pose>0 0 0 1.571 0 0</pose>
+          <pose>0 0 -0.05 0 0 0</pose>
           <geometry>
-            <mesh>
-              <uri>model://helipad/meshes/result.dae</uri>
-              <scale>0.01 0.01 0.01</scale>
-            </mesh>
+            <box>
+              <size> 20 20 3.5</size>
+            </box>
           </geometry>
           <max_contacts>10</max_contacts>
           <surface>

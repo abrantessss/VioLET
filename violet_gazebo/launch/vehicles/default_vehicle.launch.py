@@ -19,26 +19,45 @@ def vehicle_launch(context, *args, **kwargs):
   
   # Define the vehicle model to launch
   vehicle_model = str(LaunchConfiguration('vehicle_model').perform(context))
+  vehicle_sdf_model = str(LaunchConfiguration('vehicle_sdf_model').perform(context))
+  if not vehicle_sdf_model:
+    vehicle_sdf_model = vehicle_model
   vehicle_id  = int(LaunchConfiguration('vehicle_id').perform(context))
+  vehicle_id_str = str(vehicle_id)
   port_increment = vehicle_id - 1
+  start_xrce_agent = str(LaunchConfiguration('start_xrce_agent').perform(context)).lower() == 'true'
+  vehicle_namespace = 'drone' + str(vehicle_id)
+  px4_instance_dir = os.path.join(PX4_TMP_DIR, vehicle_namespace)
+  os.makedirs(px4_instance_dir, exist_ok=True)
+  config_yaml = str(LaunchConfiguration('config_yaml').perform(context))
 
   # Get environment variables
-  environment = os.environ
+  environment = dict(os.environ)
   environment['PX4_SIM_MODEL'] = 'gazebo-classic_' + vehicle_model
-  environment['PX4_UXRCE_DDS_NS'] = 'drone' + str(vehicle_id)
+  environment['PX4_UXRCE_DDS_NS'] = vehicle_namespace
   environment['ROS_VERSION'] = '2'
 
   # Get PX4 and VioLET gazebo directories
   px4_gazebo_dir = os.path.join(PX4_DIR, 'Tools/simulation/gazebo-classic/sitl_gazebo-classic')
   gazebo_dir = str(LaunchConfiguration('gazebo_dir').perform(context))
+  model_dir = os.path.join(gazebo_dir, 'models', vehicle_sdf_model)
+  jinja_template = os.path.join(model_dir, vehicle_model + '.sdf.jinja')
+  if not os.path.exists(jinja_template):
+    fallback_templates = sorted(
+      file_name for file_name in os.listdir(model_dir)
+      if file_name.endswith('.sdf.jinja')
+    )
+    if not fallback_templates:
+      raise FileNotFoundError(f'No SDF Jinja template found in {model_dir}')
+    jinja_template = os.path.join(model_dir, fallback_templates[0])
 
   # Get UAV model
-  model = os.path.join(gazebo_dir, 'models/' + vehicle_model + '/' + vehicle_model + str(vehicle_id) + '.sdf')
+  model = os.path.join(model_dir, vehicle_model + str(vehicle_id) + '.sdf')
 
   model_gen_process = ExecuteProcess(
     cmd=[
       os.path.join(px4_gazebo_dir, 'scripts/jinja_gen.py',),
-      os.path.join(gazebo_dir, 'models/' + vehicle_model + '/' + vehicle_model + '.sdf.jinja'),
+      jinja_template,
       gazebo_dir,
       '--mavlink_id=' + str(vehicle_id),
       '--mavlink_udp_port=' + str(14540 + port_increment),
@@ -58,7 +77,7 @@ def vehicle_launch(context, *args, **kwargs):
     package='gazebo_ros',
     executable='spawn_entity.py',
     arguments=[
-      '-entity', 'drone' + str(vehicle_id),
+      '-entity', vehicle_namespace,
       '-file', model,
       '-x', LaunchConfiguration('x').perform(context),
       '-y', LaunchConfiguration('y').perform(context),
@@ -66,7 +85,7 @@ def vehicle_launch(context, *args, **kwargs):
       '-R', LaunchConfiguration('R').perform(context),
       '-P', LaunchConfiguration('P').perform(context),
       '-Y', LaunchConfiguration('Y').perform(context),
-      '-robot_namespace', 'drone' + str(vehicle_id)
+      '-robot_namespace', vehicle_namespace
     ],
     output='screen'
   )
@@ -81,7 +100,7 @@ def vehicle_launch(context, *args, **kwargs):
       '-i ' + str(port_increment)
     ],
     prefix='bash -c "$0 $@"',
-    cwd=PX4_TMP_DIR,
+    cwd=px4_instance_dir,
     output='screen',
     env=environment,
     shell=False
@@ -100,8 +119,8 @@ def vehicle_launch(context, *args, **kwargs):
     PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('violet_interface'), 'launch/violet_interface.launch.py')),
     # Define costume launch arguments/parameters 
     launch_arguments={
-      'id': LaunchConfiguration('vehicle_id'), 
-      'namespace': 'drone',
+      'vehicle_id': vehicle_id_str,
+      'vehicle_ns': 'drone',
     }.items(),
   )
 
@@ -110,11 +129,21 @@ def vehicle_launch(context, *args, **kwargs):
     PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('violet_autopilot'), 'launch/violet_autopilot.launch.py')),
     # Define costume launch arguments/parameters 
     launch_arguments={
-      'vehicle_id': LaunchConfiguration('vehicle_id'),
+      'vehicle_id': vehicle_id_str,
       'vehicle_ns': 'drone',
-      'config_yaml': LaunchConfiguration('config_yaml')
+      'config_yaml': config_yaml
     }.items(),
   )
+
+  spawn_exit_actions = [LogInfo(msg='Vehicle spawned in gazebo')]
+  if start_xrce_agent:
+    # A single Micro XRCE-DDS agent can serve multiple PX4 instances.
+    spawn_exit_actions.append(xrce_agent)
+  spawn_exit_actions.extend([
+    px4_sitl_process,
+    interface_launch_file,
+    autopilot_launch_file,
+  ])
 
   return [model_gen_process,
     
@@ -132,13 +161,7 @@ def vehicle_launch(context, *args, **kwargs):
     RegisterEventHandler(
       OnProcessExit(
         target_action=spawn_model,
-        on_exit=[
-          LogInfo(msg='Vehicle spawned in gazebo'),
-          xrce_agent,
-          px4_sitl_process,
-          interface_launch_file,
-          autopilot_launch_file
-        ]
+        on_exit=spawn_exit_actions
       )
     )
   ]
@@ -151,13 +174,15 @@ def generate_launch_description():
 
   return LaunchDescription([
     # Define the environment variables so that gazebo can discover PX4 3D models and plugins
-    SetEnvironmentVariable('GAZEBO_PLUGIN_PATH', PX4_DIR + '/build/px4_sitl_default/build_gazebo'),
-    SetEnvironmentVariable('GAZEBO_MODEL_PATH', PX4_DIR + '/Tools/sitl_gazebo/models' + ':' + get_package_share_directory('violet_gazebo') + '/models'),
+    SetEnvironmentVariable('GAZEBO_PLUGIN_PATH', PX4_DIR + '/build/px4_sitl_default/build_gazebo-classic'),
+    SetEnvironmentVariable('GAZEBO_MODEL_PATH', PX4_DIR + '/Tools/simulation/gazebo-classic/sitl_gazebo-classic/models' + ':' + get_package_share_directory('violet_gazebo') + '/models'),
 
     # Define variables used in launch vehicle
     DeclareLaunchArgument('gazebo_dir', default_value=os.path.join(PX4_DIR, 'Tools/simulation/gazebo-classic/sitl_gazebo-classic'), description='Path to gazebo directory where UAV model is located'),
     DeclareLaunchArgument('vehicle_model', default_value='iris', description='UAV model name'),
+    DeclareLaunchArgument('vehicle_sdf_model', default_value='', description='Gazebo model folder used for the generated SDF; defaults to vehicle_model'),
     DeclareLaunchArgument('vehicle_id', default_value='1', description='Drone ID in the network'),
+    DeclareLaunchArgument('start_xrce_agent', default_value='true', description='Whether to start the shared Micro XRCE-DDS agent'),
     DeclareLaunchArgument(
       'config_yaml',
       default_value=os.path.join(get_package_share_directory('violet_autopilot'), 'config', 'config.yaml'),

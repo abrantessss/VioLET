@@ -176,6 +176,7 @@ class Autopilot : public rclcpp::Node {
     State state_;
     Trajectories trajectory_;
     std::string controller_type_;
+    int vehicle_id_{1};
     autopilot::Controller::UniquePtr controller_{nullptr};
     double tnow_;
     double tprev_;

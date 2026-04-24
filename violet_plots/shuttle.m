@@ -14,7 +14,7 @@ L = 5;
 fontsize = 14;
 
 % read state topic
-bagFolder = 'violet_plots/bags/mellinger_20260413_140411';
+bagFolder = 'violet_plots/bags/mellinger_smooth_k00005';
 bag = ros2bagreader(bagFolder);
 stateTopic = select(bag, 'Topic', '/drone1/plots/data');
 stateMsgs = readMessages(stateTopic);

@@ -320,7 +320,7 @@ namespace autopilot {
     msg.command = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_DO_SET_MODE;
     msg.param1 = 1;
     msg.param2 = 6;
-    msg.target_system = 1;
+    msg.target_system = vehicle_id_;
     msg.target_component = 1;
     msg.source_system = 1;
     msg.source_component = 1;

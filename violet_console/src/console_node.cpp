@@ -3,7 +3,8 @@
 #include <chrono>
 
 
-ConsoleNode::ConsoleNode(const std::string vehicle_ns, const unsigned int vehicle_id) : rclcpp::Node("violet_console") {
+ConsoleNode::ConsoleNode(const std::string vehicle_ns, const unsigned int vehicle_id)
+  : rclcpp::Node("violet_console_" + std::to_string(vehicle_id)) {
   
   // Initialize vehicle namespace
   vehicle_ns_ = std::string(vehicle_ns + std::to_string(vehicle_id));
@@ -278,4 +279,3 @@ void ConsoleNode::on_status_callback(const violet_msgs::msg::Status::ConstShared
   console_ui_->telemetry_data_.status.mode = msg->mode;
   console_ui_->request_refresh();
 }
-

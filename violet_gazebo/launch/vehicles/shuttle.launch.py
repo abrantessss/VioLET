@@ -34,6 +34,7 @@ def generate_launch_description():
             'Y': '0',
             'vehicle_id': '1',
             'vehicle_model': 'shuttle',
+            'vehicle_sdf_model': 'shuttle',
             'gazebo_dir': get_package_share_directory('violet_gazebo'),
             'config_yaml': LaunchConfiguration('config_yaml')
         }.items()

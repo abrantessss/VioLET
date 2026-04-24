@@ -27,7 +27,7 @@
         publishers:
           setpoint: "fmu/in/trajectory_setpoint"
       mellingercontroller:
-        mass: 2.0 # Kg
+        mass: 3.5 # Kg
         gains:
           kp: [2.5, 2.5, 8.0]
           kd: [4.2, 4.2, 4.8]

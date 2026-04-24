@@ -33,6 +33,9 @@ void Autopilot::update() {
 }
 
 void Autopilot::init_controller() {
+  this->declare_parameter<int>("vehicle_id", 1);
+  vehicle_id_ = this->get_parameter("vehicle_id").as_int();
+
   this->declare_parameter<std::string>("controllers.type", "onboard");
   controller_type_ = this->get_parameter("controllers.type").as_string();
 
@@ -50,6 +53,7 @@ void Autopilot::init_controller() {
 
   autopilot::Controller::Config config;
   config.node = this->shared_from_this();
+  config.vehicle_id = vehicle_id_;
 
   controller_->initialize_controller(config);
 }
