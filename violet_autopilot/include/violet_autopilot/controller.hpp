@@ -61,6 +61,8 @@ namespace autopilot {
     virtual void reset() {};
 
     virtual void set_position(const double dt, const Eigen::Vector3d& p) = 0;
+
+    virtual void set_attitude(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v) = 0;
     
     virtual void set_attitude_rate(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v, const Eigen::Vector3d& eta) = 0;
 

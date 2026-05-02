@@ -22,7 +22,7 @@
         offboard: "fmu/in/offboard_control_mode"
         request: "fmu/in/vehicle_command"
     controllers:
-      type: "los2"
+      type: "los3"
       loscontroller:
         gains:
           k1: 1.0
@@ -37,4 +37,23 @@
         publishers:
           lateral: "fmu/in/fixed_wing_lateral_setpoint"
           longitudinal: "fmu/in/fixed_wing_longitudinal_setpoint"
-
+      los3controller:
+        m: 1.5  # kg
+        gains:
+          k1: 1.0
+          k2: 10.0
+          kpE: 0.01
+          kiE: 0.00005
+          kpB: 0.002
+          kiB: 0.00001
+          ka: 6.0
+        limits:
+          throttle_min: 0.0
+          throttle_max: 1.0
+          pitch_min: -0.52
+          pitch_max: 0.52
+          lateral_acceleration_min: -6.0
+          lateral_acceleration_max: 6.0
+        publishers:
+          lateral: "fmu/in/fixed_wing_lateral_setpoint"
+          longitudinal: "fmu/in/fixed_wing_longitudinal_setpoint"

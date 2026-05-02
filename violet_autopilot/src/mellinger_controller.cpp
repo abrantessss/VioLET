@@ -54,6 +54,17 @@ namespace autopilot {
       "MellingerController does not support position setpoints");
   }
 
+  void MellingerController::set_attitude(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v) {
+    (void)dt;
+    (void)p;
+    (void)v;
+    RCLCPP_WARN_THROTTLE(
+      node_->get_logger(),
+      *node_->get_clock(),
+      5000,
+      "MellingerController does not support attitude control");
+  }
+
   void MellingerController::set_attitude_rate(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v, const Eigen::Vector3d& eta) {
     double gamma_dot = 0.0;
     double gamma_ddot = 0.0;

@@ -118,6 +118,17 @@ namespace autopilot {
     offboard_pub_->publish(offboard_msg_);
   }
 
+  void OnboardController::set_attitude(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v) {
+    (void)dt;
+    (void)p;
+    (void)v;
+    RCLCPP_WARN_THROTTLE(
+      node_->get_logger(),
+      *node_->get_clock(),
+      5000,
+      "OnboardController does not support attitude control");
+  }
+
   void OnboardController::set_attitude_rate(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v, const Eigen::Vector3d& eta) {
     (void)dt;
     (void)p;

@@ -12,9 +12,9 @@
 #include <controller.hpp>
 
 namespace autopilot{
-  class LOS2Controller : public autopilot::Controller {
+  class LOS3Controller : public autopilot::Controller {
     public:
-      ~LOS2Controller();
+      ~LOS3Controller();
 
       void initialize() override;
 
@@ -40,7 +40,23 @@ namespace autopilot{
 
       // Variables
       double gamma_;
+      double m_;
       double k1_;
       double k2_;
+      double kpE_;
+      double kiE_;
+      double kpB_;
+      double kiB_;
+      double ka_;
+      double throttle_min_;
+      double throttle_max_;
+      double pitch_min_;
+      double pitch_max_;
+      double lateral_acceleration_min_;
+      double lateral_acceleration_max_;
+      double z_ref_;
+      double E_err_int_{0.0};
+      double B_err_int_{0.0};
+      bool z_ref_initialized_{false};
   };
 }

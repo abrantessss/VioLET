@@ -11,7 +11,7 @@ class EasyGliderLemniscateNode(EasyGliderMissionNode):
     def build_trajectory(self):
         traj = Trajectory()
         traj.path_type = 3  # 3 indicates Lemniscate
-        traj.lemniscate = [0.0, 0.0, -30.0, 200.0, 14.0]
+        traj.lemniscate = [0.0, 0.0, -50.0, 200.0, 14.0]
         return traj
 
 

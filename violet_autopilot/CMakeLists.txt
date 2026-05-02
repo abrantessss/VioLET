@@ -35,6 +35,7 @@ add_executable(${PROJECT_NAME}
   src/mellinger_controller.cpp
   src/los_controller.cpp
   src/los2_controller.cpp
+  src/los3_controller.cpp
 )
 
 # Add the ROS2 packages to link against

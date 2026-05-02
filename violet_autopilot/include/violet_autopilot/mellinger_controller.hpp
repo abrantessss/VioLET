@@ -19,6 +19,8 @@ namespace autopilot {
 
       void set_position(const double dt, const Eigen::Vector3d& p) override;
 
+      void set_attitude(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v) override;
+
       void set_attitude_rate(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v, const Eigen::Vector3d& eta) override;
 
       void set_path(const int type, const double* path) override;
