@@ -36,6 +36,7 @@ add_executable(${PROJECT_NAME}
   src/los_controller.cpp
   src/los2_controller.cpp
   src/los3_controller.cpp
+  src/los4_controller.cpp
 )
 
 # Add the ROS2 packages to link against
