@@ -154,7 +154,7 @@ class ShuttleMissionNode(Node):
         dy = self.current_pos[1] - waypoint[1]
         dz = self.current_pos[2] - waypoint[2]
         dist = math.sqrt(dx * dx + dy * dy + dz * dz)
-        return dist < 0.5
+        return dist < 0.8
 
 
 def spin_mission(node_factory, args=None):

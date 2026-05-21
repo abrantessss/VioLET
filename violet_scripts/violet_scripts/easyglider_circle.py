@@ -11,7 +11,7 @@ class EasyGliderCircleNode(EasyGliderMissionNode):
     def build_trajectory(self):
         traj = Trajectory()
         traj.path_type = 2  # 2 indicates Circle
-        traj.circle = [0.0, 0.0, -30.0, 100.0, 14.0]
+        traj.circle = [-250.0, 50.0, -30.0, 100.0, 18.0]
         return traj
 
 

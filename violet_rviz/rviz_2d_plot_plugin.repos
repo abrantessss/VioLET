@@ -1,0 +1,5 @@
+repositories:
+  rviz_2d_plot_plugin:
+    type: git
+    url: https://github.com/amgaber95/rviz_2d_plot_plugin.git
+    version: main

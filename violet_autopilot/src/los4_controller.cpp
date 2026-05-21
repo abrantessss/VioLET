@@ -34,6 +34,29 @@ namespace autopilot {
 
       return command;
     }
+
+    Eigen::Vector3d lemniscate_derivative(const double a, const double gamma)
+    {
+      Eigen::Vector3d derivative;
+      derivative << a * std::sin(gamma) * (std::pow(std::sin(gamma), 2) - 3) /
+                      std::pow(1 + std::pow(std::sin(gamma), 2), 2),
+                    a * (1 - 3 * std::pow(std::sin(gamma), 2)) /
+                      std::pow(1 + std::pow(std::sin(gamma), 2), 2),
+                    0.0;
+      return derivative;
+    }
+
+    double signed_horizontal_curvature(
+      const Eigen::Vector3d& dpd_dgamma,
+      const Eigen::Vector3d& d2pd_dgamma2)
+    {
+      const double horizontal_speed_sq =
+        dpd_dgamma.x() * dpd_dgamma.x() + dpd_dgamma.y() * dpd_dgamma.y();
+      const double denominator = std::pow(horizontal_speed_sq, 1.5);
+
+      return (dpd_dgamma.x() * d2pd_dgamma2.y() -
+              dpd_dgamma.y() * d2pd_dgamma2.x()) / denominator;
+    }
   }
   
   LOS4Controller::~LOS4Controller() {}
@@ -138,6 +161,7 @@ namespace autopilot {
     Eigen::Vector3d pd = Eigen::Vector3d::Zero();
     Eigen::Vector3d ep = Eigen::Vector3d::Zero();
     Eigen::Vector3d dpd_dgamma = Eigen::Vector3d::Zero();
+    Eigen::Vector3d d2pd_dgamma2 = Eigen::Vector3d::Zero();
     double gamma_dot = 0.0;
     double Va = 0.0;
 
@@ -155,6 +179,7 @@ namespace autopilot {
       pd = path_.line_p0 + gamma_ * (path_.line_p1 - path_.line_p0);
 
       dpd_dgamma = path_.line_p1 - path_.line_p0;
+      d2pd_dgamma2 = Eigen::Vector3d::Zero();
     }
     else if (path_.type == 2) {
       // Circle
@@ -169,6 +194,10 @@ namespace autopilot {
       dpd_dgamma << -R*std::sin(gamma_),
                     R*std::cos(gamma_),
                     0;
+
+      d2pd_dgamma2 << -R*std::cos(gamma_),
+                      -R*std::sin(gamma_),
+                      0;
     }
     else {
       // Lemniscate
@@ -184,9 +213,13 @@ namespace autopilot {
             c.y() + a * s * cg / denom,
             c.z();
 
-      dpd_dgamma << (a * std::sin(gamma_) * (std::pow(std::sin(gamma_),2) - 3) / std::pow(1 + std::pow(std::sin(gamma_),2), 2)),
-                    (a * (1 - 3 * std::pow(std::sin(gamma_),2)) / std::pow(1 + std::pow(std::sin(gamma_),2), 2)),
-                    0;
+      dpd_dgamma = lemniscate_derivative(a, gamma_);
+
+      constexpr double derivative_step = 1e-4;
+      d2pd_dgamma2 =
+        (lemniscate_derivative(a, gamma_ + derivative_step) -
+         lemniscate_derivative(a, gamma_ - derivative_step)) /
+        (2.0 * derivative_step);
     }
 
     ep = p - pd;
@@ -214,14 +247,14 @@ namespace autopilot {
       static_cast<float>(kphi_),
       static_cast<float>(ktheta_)});
 
-    const double height_rate = - Va * h(2);
+    const double h_d_dot = - Va * h(2);
 
     if (!z_ref_initialized_) {
       z_ref_ = -p.z();
       z_ref_initialized_ = true;
     }
 
-    z_ref_ += height_rate * dt;
+    z_ref_ += h_d_dot * dt;
 
     // Longitudinal Controller
     constexpr double g = 9.81;
@@ -240,12 +273,17 @@ namespace autopilot {
       throttle_min_,
       throttle_max_);
 
-    const double pitch_cmd = pi_command_with_antiwindup(
+    const double pitch_feedforward = h_d_dot / Va;
+    const double pitch_feedback_cmd = pi_command_with_antiwindup(
       B_err,
       dt,
       B_err_int_,
       kpB_,
       kiB_,
+      pitch_min_,
+      pitch_max_);
+    const double pitch_cmd = std::clamp(
+      pitch_feedforward + pitch_feedback_cmd,
       pitch_min_,
       pitch_max_);
 
@@ -260,8 +298,11 @@ namespace autopilot {
     h_ref /= horizontal_ref_norm;
     const double e_z = h_current.cross(h_ref)(2);
 
+    const double lateral_acceleration_feedforward =
+      Va * Va * signed_horizontal_curvature(dpd_dgamma, d2pd_dgamma2);
+
     const double lateral_acceleration_cmd = std::clamp(
-      ka_ * e_z,
+      lateral_acceleration_feedforward + ka_ * e_z,
       lateral_acceleration_min_,
       lateral_acceleration_max_);
     const double roll_cmd = std::atan(lateral_acceleration_cmd / g);
@@ -280,8 +321,10 @@ namespace autopilot {
       node_->get_logger(),
       *node_->get_clock(),
       500,
-      "LOS4 commands: throttle=%.3f, roll_rate=%.3f, pitch_rate=%.3f, yaw_rate=%.3f, h_ref=%.3f",
+      "LOS4 commands: throttle=%.3f, lateral_acceleration=%.3f, lateral_ff=%.3f, roll_rate=%.3f, pitch_rate=%.3f, yaw_rate=%.3f, h_ref=%.3f",
       throttle_cmd,
+      lateral_acceleration_cmd,
+      lateral_acceleration_feedforward,
       p_cmd,
       q_cmd,
       r_cmd,

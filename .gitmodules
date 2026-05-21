@@ -1,3 +1,6 @@
 [submodule "violet_msgs/px4_msgs"]
 	path = violet_msgs/px4_msgs
 	url = https://github.com/PX4/px4_msgs.git
+[submodule "rviz_2d_plot_plugin"]
+	path = rviz_2d_plot_plugin
+	url = https://github.com/amgaber95/rviz_2d_plot_plugin.git

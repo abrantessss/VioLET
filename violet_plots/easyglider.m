@@ -12,7 +12,7 @@ fontsize = 14;
 
 % read state topic
 %ros2genmsg("violet_msgs", "BuildConfiguration","fasterbuilds")
-bagFolder = 'violet_plots/bags/los2_20260409_104337';
+bagFolder = 'violet_plots/bags/los4_20260521_115151';
 bag = ros2bagreader(bagFolder);
 stateTopic = select(bag, 'Topic', '/drone1/plots/data');
 stateMsgs = readMessages(stateTopic);
