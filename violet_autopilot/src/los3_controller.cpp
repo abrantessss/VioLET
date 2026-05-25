@@ -244,10 +244,10 @@ namespace autopilot {
     // Longitudinal Controller
     constexpr double g = 9.81;
     const double K_err = 0.5 * m_ * (Va*Va - v.squaredNorm());
-    const double U_err = m_ * g * (z_ref_ - (-p.z()));
+    const double U_err = m_ * g * ((-p.z()) - z_ref_);
 
     const double E_err = U_err + K_err;
-    const double B_err = U_err - K_err;
+    const double B_err = -(U_err - K_err);
 
     const double throttle_cmd = pi_command_with_antiwindup(
       E_err,

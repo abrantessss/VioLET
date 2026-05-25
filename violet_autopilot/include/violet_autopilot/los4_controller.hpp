@@ -54,8 +54,11 @@ namespace autopilot{
       double lateral_acceleration_min_;
       double lateral_acceleration_max_;
       double z_ref_;
+      double previous_roll_cmd_{0.0};
+      double previous_pitch_cmd_{0.0};
       double E_err_int_{0.0};
       double B_err_int_{0.0};
       bool z_ref_initialized_{false};
+      bool attitude_cmd_initialized_{false};
   };
 }

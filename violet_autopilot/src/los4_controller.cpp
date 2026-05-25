@@ -247,10 +247,10 @@ namespace autopilot {
       static_cast<float>(kphi_),
       static_cast<float>(ktheta_)});
 
-    const double h_d_dot = - Va * h(2);
+    const double h_d_dot = -Va * h(2);
 
     if (!z_ref_initialized_) {
-      z_ref_ = -p.z();
+      z_ref_ = -(p.z());
       z_ref_initialized_ = true;
     }
 
@@ -259,10 +259,10 @@ namespace autopilot {
     // Longitudinal Controller
     constexpr double g = 9.81;
     const double K_err = 0.5 * m_ * (Va*Va - v.squaredNorm());
-    const double U_err = m_ * g * (z_ref_ - (-p.z()));
+    const double U_err = m_ * g * (-p.z() - z_ref_);
 
     const double E_err = U_err + K_err;
-    const double B_err = U_err - K_err;
+    const double B_err = -(U_err - K_err);
 
     const double throttle_cmd = pi_command_with_antiwindup(
       E_err,
@@ -308,8 +308,20 @@ namespace autopilot {
     const double roll_cmd = std::atan(lateral_acceleration_cmd / g);
 
     // Attitude Controller
-    const double roll_rate_cmd = kphi_ * (roll_cmd - eta(0));
-    const double pitch_rate_cmd = ktheta_ * (pitch_cmd - eta(1));
+    if (!attitude_cmd_initialized_) {
+      previous_roll_cmd_ = roll_cmd;
+      previous_pitch_cmd_ = pitch_cmd;
+      attitude_cmd_initialized_ = true;
+    }
+
+    const double roll_cmd_dot = (roll_cmd - previous_roll_cmd_) / dt;
+    const double pitch_cmd_dot = (pitch_cmd - previous_pitch_cmd_) / dt;
+
+    previous_roll_cmd_ = roll_cmd;
+    previous_pitch_cmd_ = pitch_cmd;
+
+    const double roll_rate_cmd = roll_cmd_dot + kphi_ * (roll_cmd - eta(0));
+    const double pitch_rate_cmd = pitch_cmd_dot + ktheta_ * (pitch_cmd - eta(1));
     const double yaw_rate_cmd = (g*std::tan(roll_cmd)) / (Va*std::cos(pitch_cmd));
 
     const double p_cmd = roll_rate_cmd - yaw_rate_cmd*std::sin(eta(1));
@@ -358,6 +370,7 @@ namespace autopilot {
     path_.type = type;
     gamma_ = 0.0;
     z_ref_initialized_ = false;
+    attitude_cmd_initialized_ = false;
     E_err_int_ = 0.0;
     B_err_int_ = 0.0;
 
