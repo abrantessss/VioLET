@@ -5,7 +5,8 @@
     <link name='base_link'>
       <pose>0.07 0 -0.01 0 0 0</pose>
       <inertial>
-        <pose>-0.135 0 -0.05 0 0 0</pose>
+        <!-- -0.135 -->
+        <pose>-0.3 0 -0.05 0 0 0</pose>
         <mass>1.5</mass>
         <inertia>
           <ixx>0.197563</ixx>
@@ -629,7 +630,7 @@
       <sdk_udp_port>14540</sdk_udp_port>
       <hil_mode>{{ hil_mode }}</hil_mode>
       <hil_state_level>false</hil_state_level>
-      <enable_lockstep>true</enable_lockstep>
+      <enable_lockstep>false</enable_lockstep>
       <use_tcp>true</use_tcp>
       <motorSpeedCommandPubTopic>/gazebo/command/motor_speed</motorSpeedCommandPubTopic>
       <control_channels>

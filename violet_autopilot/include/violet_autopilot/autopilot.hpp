@@ -8,6 +8,7 @@
 #include "los2_controller.hpp"
 #include "los3_controller.hpp"
 #include "los4_controller.hpp"
+#include "combined_direct_controller.hpp"
 #include <Eigen/Dense>
 
 // Console mode messages

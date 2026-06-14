@@ -35,6 +35,35 @@ namespace autopilot {
       return command;
     }
 
+    double throttle_command_with_antiwindup(
+      const double energy_error,
+      const double dt,
+      double& energy_error_integral,
+      const double ki,
+      const double feedforward,
+      const double kp,
+      const double va,
+      const double tmax)
+    {
+      const double integral_candidate = energy_error_integral + energy_error * dt;
+      const double command_unsaturated =
+        (ki * integral_candidate + (feedforward - kp * energy_error) / va) / tmax;
+      const double command = std::clamp(command_unsaturated, 0.0, 1.0);
+
+      const bool saturated_high = command_unsaturated > 1.0;
+      const bool saturated_low = command_unsaturated < 0.0;
+      const bool drives_out_of_high_saturation = saturated_high && energy_error < 0.0;
+      const bool drives_out_of_low_saturation = saturated_low && energy_error > 0.0;
+
+      if ((!saturated_high && !saturated_low) ||
+          drives_out_of_high_saturation ||
+          drives_out_of_low_saturation) {
+        energy_error_integral = integral_candidate;
+      }
+
+      return command;
+    }
+
     Eigen::Vector3d lemniscate_derivative(const double a, const double gamma)
     {
       Eigen::Vector3d derivative;
@@ -73,6 +102,7 @@ namespace autopilot {
 
     // Load Mass
     node_->declare_parameter<double>("controllers.los4controller.m", 1.5);
+    node_->declare_parameter<double>("controllers.los4controller.Tmax", 15.0);
 
     // Load Gains
     node_->declare_parameter<double>("controllers.los4controller.gains.k1", 1.0);
@@ -92,6 +122,7 @@ namespace autopilot {
     node_->declare_parameter<double>("controllers.los4controller.limits.lateral_acceleration_max", 4.0);
 
     m_ = node_->get_parameter("controllers.los4controller.m").as_double();
+    Tmax_ = node_->get_parameter("controllers.los4controller.Tmax").as_double();
     k1_ = node_->get_parameter("controllers.los4controller.gains.k1").as_double();
     k2_ = node_->get_parameter("controllers.los4controller.gains.k2").as_double();
     kpE_ = node_->get_parameter("controllers.los4controller.gains.kpE").as_double();
@@ -111,6 +142,12 @@ namespace autopilot {
     if (throttle_min_ > throttle_max_) {
       std::swap(throttle_min_, throttle_max_);
     }
+    if (Tmax_ <= 0.0) {
+      RCLCPP_WARN_STREAM(
+        node_->get_logger(),
+        "LOS4Controller Tmax must be positive, using default Tmax = 15.0");
+      Tmax_ = 15.0;
+    }
     if (pitch_min_ > pitch_max_) {
       std::swap(pitch_min_, pitch_max_);
     }
@@ -119,6 +156,8 @@ namespace autopilot {
     }
 
     // Log Gains 
+    RCLCPP_INFO_STREAM(node_->get_logger(), "LOS4Controller vehicle mass: m = " << m_);
+    RCLCPP_INFO_STREAM(node_->get_logger(), "LOS4Controller max thrust: Tmax = " << Tmax_);
     RCLCPP_INFO_STREAM(node_->get_logger(), "LOS4Controller vehicle gain: k1 = " << k1_);
     RCLCPP_INFO_STREAM(node_->get_logger(), "LOS4Controller vehicle gain: k2 = " << k2_);
     RCLCPP_INFO_STREAM(node_->get_logger(), "LOS4Controller vehicle gain: kpE = " << kpE_);
@@ -264,14 +303,15 @@ namespace autopilot {
     const double E_err = U_err + K_err;
     const double B_err = -(U_err - K_err);
 
-    const double throttle_cmd = pi_command_with_antiwindup(
+    const double throttle_cmd = throttle_command_with_antiwindup(
       E_err,
       dt,
       E_err_int_,
-      kpE_,
       kiE_,
-      throttle_min_,
-      throttle_max_);
+      m_ * g * h_d_dot,
+      kpE_,
+      Va,
+      Tmax_);
 
     const double pitch_feedforward = h_d_dot / Va;
     const double pitch_feedback_cmd = pi_command_with_antiwindup(
@@ -328,6 +368,7 @@ namespace autopilot {
     const double q_cmd = pitch_rate_cmd*std::cos(eta(0)) + yaw_rate_cmd*std::sin(eta(0))*std::cos(eta(1));
     const double r_cmd = -pitch_rate_cmd*std::sin(eta(0)) + yaw_rate_cmd*std::cos(eta(0))*std::cos(eta(1));
 
+    /*
     // Log command
     RCLCPP_INFO_THROTTLE(
       node_->get_logger(),
@@ -340,7 +381,7 @@ namespace autopilot {
       p_cmd,
       q_cmd,
       r_cmd,
-      z_ref_);
+      z_ref_);*/
 
     const uint64_t now_us = node_->get_clock()->now().nanoseconds() / 1000;
 

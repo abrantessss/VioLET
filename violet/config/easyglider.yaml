@@ -39,11 +39,12 @@
           longitudinal: "fmu/in/fixed_wing_longitudinal_setpoint"
       los3controller:
         m: 1.5  # kg
+        Tmax: 120.0  # N
         gains:
           k1: 1.0
           k2: 20.0
-          kpE: 0.01
-          kiE: 0.00005
+          kpE: 0.05
+          kiE: 0.005
           kpB: 0.002
           kiB: 0.00001
           ka: 6.0
@@ -59,11 +60,12 @@
           longitudinal: "fmu/in/fixed_wing_longitudinal_setpoint"
       los4controller:
         m: 1.5  # kg
+        Tmax: 120.0  # N
         gains:
           k1: 1.0
           k2: 18.0
-          kpE: 0.01
-          kiE: 0.00005
+          kpE: 0.05
+          kiE: 0.005
           kpB: 0.002
           kiB: 0.00001
           ka: 6.0

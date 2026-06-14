@@ -19,7 +19,7 @@ void Autopilot::update() {
       double dt = tnow_ - tprev_;
       tprev_ = tnow_;
       
-      if ((controller_type_ == "onboard")  || (controller_type_ == "los") || (controller_type_ == "los2")) {
+      if ((controller_type_ == "onboard")  || (controller_type_ == "los") || (controller_type_ == "los2") || (controller_type_ == "combined_direct")) {
         controller_->set_position(dt, state_.position);
       } else if (controller_type_ == "los3") {
         controller_->set_attitude(dt, state_.position, state_.inertial_velocity);
@@ -53,6 +53,8 @@ void Autopilot::init_controller() {
     controller_ = std::make_unique<autopilot::LOS3Controller>();
   } else if (controller_type_ == "los4") {
     controller_ = std::make_unique<autopilot::LOS4Controller>();
+  } else if (controller_type_ == "combined_direct") {
+    controller_ = std::make_unique<autopilot::CombinedDirectController>();
   } else {
     throw std::runtime_error("Unknown controller type: " + controller_type_);
   }

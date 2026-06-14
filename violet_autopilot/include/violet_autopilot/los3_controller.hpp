@@ -41,6 +41,7 @@ namespace autopilot{
       // Variables
       double gamma_;
       double m_;
+      double Tmax_;
       double k1_;
       double k2_;
       double kpE_;

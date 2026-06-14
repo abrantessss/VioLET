@@ -28,6 +28,7 @@ setup(
             'shuttle_lemniscate = violet_scripts.shuttle_lemniscate:main',
             'shuttle_line = violet_scripts.shuttle_line:main',
             'shuttle_waypoint = violet_scripts.shuttle_waypoint:main',
+            'combined_mixer_test = violet_scripts.combined_mixer_test:main',
         ],
     },
 )
