@@ -11,23 +11,19 @@ from rclpy.qos import qos_profile_sensor_data
 
 from violet_msgs.msg import Mode, Trajectory
 
-
-MIXER = [
-    [-1.0, 1.0, 1.0, -1.0, 0.1],
-    [1.0, -1.0, 1.0, -1.0, 4.0],
-    [1.0, 1.0, -1.0, -1.0, 0.0],
-    [0.0, 0.0, 0.0, 0.0, 3.43],
-    [0.0, 0.0, 0.0, 0.0, 0.0],
-    [-1.0, -1.0, -1.0, -1.0, 0.0],
+MIXER_NORM_THRUST = [
+    [-1.0,   1.0,   1.0,  -1.0, 0.0],
+    [ 1.0,  -1.0,   1.0,  -1.0, 8.2],
+    [ 1.0,   1.0,  -1.0,  -1.0, 0.0],
+    [ 0.0,   0.0,   0.0,   0.0, 1.0],
+    [ 0.0,   0.0,   0.0,   0.0, 0.0],
+    [-0.25, -0.25, -0.25, -0.25, 0.0],
 ]
 
 TESTS = [
-    #('roll +Mx', [0.60, 0.0, 0.0, 0.0, 0.0, 0.0], 'rotor1/rotor2 should increase'),
-    #('pitch +My', [0.0, 0.60, 0.0, 0.0, 0.0, 0.0], 'rotor0/rotor2 and fixed-wing prop should increase'),
-    #('yaw +Mz', [0.0, 0.0, 0.60, 0.0, 0.0, 0.0], 'rotor0/rotor1 should increase'),
-    ('fixed prop +Fx', [0.0, 0.0, 0.0, 0.20, 0.0, 0.0], 'fixed-wing forward prop should increase'),
-    #('quad collective -Fz', [0.0, 0.0, 0.0, 0.0, 0.0, -0.60], 'all four quad motors should increase together'),
-    #('uncontrolled +Fy', [0.0, 0.0, 0.0, 0.0, 0.40, 0.0], 'actuators should stay near zero because this row is all zeros'),
+    #('A quad collective -Fz', [0.0, 0.0, 0.0, 0.0, 0.0, -1.0], 'all four quad thrust fractions and commands should be 1.0'),
+    #('B fixed prop +Fx', [0.0, 0.0, 0.0, 1.0, 0.0, 0.0], 'fixed prop thrust fraction should increase; clipping is acceptable'),
+    ('C prop + quad lift', [0.0, 0.0, 0.0, 0.02, 0.0, -0.6], 'prop fraction near 0.1; q1/q3 compensate fixed-prop pitch moment'),
 ]
 
 
@@ -86,7 +82,7 @@ class CombinedMixerTestNode(Node):
         self.declare_parameter('publish_rate_hz', 20.0)
         self.declare_parameter('arm_seconds', 2.0)
         self.declare_parameter('prime_seconds', 5.0)
-        self.declare_parameter('test_seconds', 10.0)
+        self.declare_parameter('test_seconds', 50.0)
         self.declare_parameter('damping', 0.01)
         self.declare_parameter('motor_min', -1.0)
         self.declare_parameter('motor_max', 1.0)
@@ -156,19 +152,20 @@ class CombinedMixerTestNode(Node):
     def on_fixed_wing_servos(self, msg):
         self.latest_fixed_wing_servos = list(msg.control[:4])
 
-    def expected_internal_actuators(self, wrench):
-        mixer_t = transpose(MIXER)
-        regularized = matmul(MIXER, mixer_t)
-        for i in range(6):
-            regularized[i][i] += self.damping * self.damping
-        return matvec(mixer_t, solve(regularized, wrench))
+    def expected_thrust_fractions_raw(self, wrench):
+        mixer_t = transpose(MIXER_NORM_THRUST)
+        normal_matrix = matmul(mixer_t, MIXER_NORM_THRUST)
+        normal_rhs = matvec(mixer_t, wrench)
+        return solve(normal_matrix, normal_rhs)
 
     def expected_published_actuators(self, wrench):
-        u = self.expected_internal_actuators(wrench)
+        s_raw = self.expected_thrust_fractions_raw(wrench)
+        s = [clamp(value, 0.0, 1.0) for value in s_raw]
+        u = [math.sqrt(value) for value in s]
         shuttle_motors = [clamp(value, self.motor_min, self.motor_max) for value in u[:4]]
         fixed_wing_motor = [clamp(u[4], 0.0, self.motor_max)]
         fixed_wing_servos = [0.0, 0.0, 0.0, 0.0]
-        return u, shuttle_motors, fixed_wing_motor, fixed_wing_servos
+        return s_raw, s, u, shuttle_motors, fixed_wing_motor, fixed_wing_servos
 
     def publish_arm(self):
         msg = Mode()
@@ -203,14 +200,21 @@ class CombinedMixerTestNode(Node):
             time.sleep(period)
 
     def log_result(self, label, wrench, note):
-        u, shuttle_motors, fixed_wing_motor, fixed_wing_servos = self.expected_published_actuators(wrench)
-        achieved = matvec(MIXER, u)
+        s_raw, s, u, shuttle_motors, fixed_wing_motor, fixed_wing_servos = (
+            self.expected_published_actuators(wrench)
+        )
+        achieved = matvec(MIXER_NORM_THRUST, s)
         error = [wrench[i] - achieved[i] for i in range(6)]
+        clipped = any(abs(s_raw[i] - s[i]) > 1e-9 for i in range(len(s)))
 
         self.get_logger().info(f'Test: {label} - {note}')
         self.get_logger().info(f'  command wrench [Mx My Mz Fx Fy Fz] = {fmt(wrench)}')
-        self.get_logger().info(f'  expected u [q_fl q_fr q_rl q_rr fixed_prop] = {fmt(u)}')
-        self.get_logger().info(f'  achieved B*u = {fmt(achieved)}, residual = {fmt(error)}')
+        self.get_logger().info(f'  expected raw thrust fractions = {fmt(s_raw)}')
+        self.get_logger().info(f'  expected clipped thrust fractions = {fmt(s)}')
+        if clipped:
+            self.get_logger().info('  clipping applied to thrust fractions')
+        self.get_logger().info(f'  expected actuator commands sqrt(s) = {fmt(u)}')
+        self.get_logger().info(f'  achieved B*s = {fmt(achieved)}, residual = {fmt(error)}')
         self.get_logger().info(f'  expected shuttle motors = {fmt(shuttle_motors)}')
         self.get_logger().info(f'  observed shuttle motors = {fmt(self.latest_shuttle_motors or [math.nan] * 4)}')
         self.get_logger().info(f'  expected fixed prop = {fmt(fixed_wing_motor)}')

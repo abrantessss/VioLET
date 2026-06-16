@@ -44,6 +44,9 @@
           motor_max: 1.0
           servo_min: -1.0
           servo_max: 1.0
+        max_thrust:
+          quad: 33.51
+          fixed_wing: 104.72
         subscribers:
           wrench: "fmu/in/combined_wrench"
         publishers:

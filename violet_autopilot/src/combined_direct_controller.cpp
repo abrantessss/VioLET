@@ -110,13 +110,16 @@ namespace autopilot {
       std::swap(servo_min_, servo_max_);
     }
 
+    // Normalized thrust-fraction effectiveness matrix. Columns are
+    // [q0, q1, q2, q3, fixed_prop], where each actuator allocation is a
+    // thrust fraction in [0, 1]. Actuator commands are sqrt(fraction).
     mixer_ <<
-      -1.0,  1.0,  1.0, -1.0,  0.1,
-       1.0, -1.0,  1.0, -1.0,  4.0,
-       1.0,  1.0, -1.0, -1.0,  0.0,
-       0.0,  0.0,  0.0,  0.0,  3.43,
-       0.0,  0.0,  0.0,  0.0,  0.0,
-      -1.0, -1.0, -1.0, -1.0,  0.0;
+        -1.0,   1.0,   1.0,  -1.0, 0.0,
+         1.0,  -1.0,   1.0,  -1.0, 8.2,
+         1.0,   1.0,  -1.0,  -1.0, 0.0,
+         0.0,   0.0,   0.0,   0.0, 1.0,
+         0.0,   0.0,   0.0,   0.0, 0.0,
+        -0.25, -0.25, -0.25, -0.25, 0.0;
 
     RCLCPP_INFO_STREAM(
       node_->get_logger(),
@@ -185,10 +188,9 @@ namespace autopilot {
   }
 
   Eigen::Matrix<double, 5, 1> CombinedDirectController::mix_wrench() const {
-    const Eigen::Matrix<double, 6, 6> regularized =
-      mixer_ * mixer_.transpose()
-      + damping_ * damping_ * Eigen::Matrix<double, 6, 6>::Identity();
-    return mixer_.transpose() * regularized.ldlt().solve(wrench_);
+    const Eigen::Matrix<double, 5, 5> normal_matrix = mixer_.transpose() * mixer_;
+    const Eigen::Matrix<double, 5, 1> normal_rhs = mixer_.transpose() * wrench_;
+    return normal_matrix.ldlt().solve(normal_rhs);
   }
 
   void CombinedDirectController::publish_actuators() {
@@ -203,7 +205,16 @@ namespace autopilot {
     }
     last_publish_us_ = now_us;
 
-    const Eigen::Matrix<double, 5, 1> mixed = mix_wrench();
+    const Eigen::Matrix<double, 5, 1> allocated_thrust = mix_wrench();
+    Eigen::Matrix<double, 5, 1> clipped_thrust;
+    Eigen::Matrix<double, 5, 1> actuator_commands;
+    bool clipped = false;
+    for (int i = 0; i < 5; ++i) {
+      clipped_thrust(i) = std::clamp(allocated_thrust(i), 0.0, 1.0);
+      clipped = clipped || clipped_thrust(i) != allocated_thrust(i);
+      actuator_commands(i) = std::sqrt(clipped_thrust(i));
+    }
+
     const float nan = std::numeric_limits<float>::quiet_NaN();
 
     shuttle_motors_msg_.timestamp = now_us;
@@ -212,7 +223,7 @@ namespace autopilot {
     shuttle_motors_msg_.control.fill(nan);
     for (int i = 0; i < 4; ++i) {
       shuttle_motors_msg_.control[i] =
-        static_cast<float>(std::clamp(mixed(i), motor_min_, motor_max_));
+        static_cast<float>(std::clamp(actuator_commands(i), motor_min_, motor_max_));
     }
     publish_offboard_mode();
 
@@ -228,7 +239,7 @@ namespace autopilot {
     fixed_wing_motors_msg_.reversible_flags = 0;
     fixed_wing_motors_msg_.control.fill(nan);
     fixed_wing_motors_msg_.control[0] =
-      static_cast<float>(std::clamp(mixed(4), 0.0, motor_max_));
+      static_cast<float>(std::clamp(actuator_commands(4), 0.0, motor_max_));
     fixed_wing_motors_pub_->publish(fixed_wing_motors_msg_);
 
     fixed_wing_servos_msg_.timestamp = now_us;
@@ -244,7 +255,24 @@ namespace autopilot {
       node_->get_logger(),
       *node_->get_clock(),
       1000,
-      "CombinedDirectController actuator output: q=[%.3f %.3f %.3f %.3f], prop=%.3f, surf=[%.3f %.3f %.3f %.3f]",
+      "CombinedDirectController allocation: thrust_fraction=[%.3f %.3f %.3f %.3f %.3f] raw=[%.3f %.3f %.3f %.3f %.3f]%s",
+      clipped_thrust(0),
+      clipped_thrust(1),
+      clipped_thrust(2),
+      clipped_thrust(3),
+      clipped_thrust(4),
+      allocated_thrust(0),
+      allocated_thrust(1),
+      allocated_thrust(2),
+      allocated_thrust(3),
+      allocated_thrust(4),
+      clipped ? " clipped" : "");
+
+    RCLCPP_INFO_THROTTLE(
+      node_->get_logger(),
+      *node_->get_clock(),
+      1000,
+      "CombinedDirectController actuator commands: q=[%.3f %.3f %.3f %.3f], prop=%.3f, surf=[%.3f %.3f %.3f %.3f]",
       shuttle_motors_msg_.control[0],
       shuttle_motors_msg_.control[1],
       shuttle_motors_msg_.control[2],
