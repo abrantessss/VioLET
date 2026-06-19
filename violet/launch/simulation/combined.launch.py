@@ -69,8 +69,8 @@ def generate_launch_description():
     IncludeLaunchDescription(
       PythonLaunchDescriptionSource(default_vehicle_launch),
       launch_arguments={
-        'x': '0',
-        'y': '-0.225',
+        'x': '-0.00108377',
+        'y': '-0.223943',
         'z': '2',
         'R': '0',
         'P': '0',

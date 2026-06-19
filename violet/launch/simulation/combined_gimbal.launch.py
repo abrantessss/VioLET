@@ -70,8 +70,8 @@ def generate_launch_description():
       PythonLaunchDescriptionSource(default_vehicle_launch),
       launch_arguments={
         'x': '0',
-        'y': '-0.225',
-        'z': '5',
+        'y': '0',
+        'z': '4.9',
         'R': '0',
         'P': '0',
         'Y': '-1.5781',

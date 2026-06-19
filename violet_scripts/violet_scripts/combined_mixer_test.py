@@ -11,9 +11,10 @@ from rclpy.qos import qos_profile_sensor_data
 
 from violet_msgs.msg import Mode, Trajectory
 
+
 MIXER_NORM_THRUST = [
-    [-1.0,   1.0,   1.0,  -1.0, 0.0],
-    [ 1.0,  -1.0,   1.0,  -1.0, 8.2],
+    [-1.0,   1.0,   1.0,  -1.0, 0.126],
+    [ 1.0,  -1.0,   1.0,  -1.0, 3.9],
     [ 1.0,   1.0,  -1.0,  -1.0, 0.0],
     [ 0.0,   0.0,   0.0,   0.0, 1.0],
     [ 0.0,   0.0,   0.0,   0.0, 0.0],

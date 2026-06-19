@@ -287,7 +287,7 @@ namespace autopilot {
     rates_msg_.yaw = attitude_rate[2];
     rates_msg_.thrust_body[0] = 0.0f;
     rates_msg_.thrust_body[1] = 0.0f;
-    rates_msg_.thrust_body[2] = static_cast<float>(-std::clamp(T / 35, 0.0, 1.0));
+    rates_msg_.thrust_body[2] = static_cast<float>(-std::clamp(T / 134, 0.0, 1.0)); // 134 Nm -> Max Thurst
   
     rates_pub_->publish(rates_msg_);
 

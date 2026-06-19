@@ -197,6 +197,8 @@
       <child_model>drone2</child_model>
       <child_link>base_link</child_link>
       <joint_name>drone1_drone2_fixed_joint</joint_name>
+      <child_cog_offset_from_parent_cog>0 0 -0.5</child_cog_offset_from_parent_cog>
+      <center_of_mass_log_period_s>1.0</center_of_mass_log_period_s>
     </plugin>
   </world>
 </sdf>

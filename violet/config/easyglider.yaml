@@ -39,7 +39,7 @@
           longitudinal: "fmu/in/fixed_wing_longitudinal_setpoint"
       los3controller:
         m: 1.5  # kg
-        Tmax: 120.0  # N
+        Tmax: 104.7  # Nm
         gains:
           k1: 1.0
           k2: 20.0

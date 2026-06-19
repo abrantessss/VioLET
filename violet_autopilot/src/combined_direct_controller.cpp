@@ -113,13 +113,14 @@ namespace autopilot {
     // Normalized thrust-fraction effectiveness matrix. Columns are
     // [q0, q1, q2, q3, fixed_prop], where each actuator allocation is a
     // thrust fraction in [0, 1]. Actuator commands are sqrt(fraction).
+
     mixer_ <<
-        -1.0,   1.0,   1.0,  -1.0, 0.0,
-         1.0,  -1.0,   1.0,  -1.0, 8.2,
-         1.0,   1.0,  -1.0,  -1.0, 0.0,
-         0.0,   0.0,   0.0,   0.0, 1.0,
-         0.0,   0.0,   0.0,   0.0, 0.0,
-        -0.25, -0.25, -0.25, -0.25, 0.0;
+        -1.0,   1.0,   1.0,  -1.0, 0.126,
+        1.0,  -1.0,   1.0,  -1.0, 3.9,
+        1.0,   1.0,  -1.0,  -1.0, 0.0,
+        0.0,   0.0,   0.0,   0.0, 1.0,
+        0.0,   0.0,   0.0,   0.0, 0.0,
+       -0.25, -0.25, -0.25, -0.25, 0.0;
 
     RCLCPP_INFO_STREAM(
       node_->get_logger(),
@@ -212,7 +213,7 @@ namespace autopilot {
     for (int i = 0; i < 5; ++i) {
       clipped_thrust(i) = std::clamp(allocated_thrust(i), 0.0, 1.0);
       clipped = clipped || clipped_thrust(i) != allocated_thrust(i);
-      actuator_commands(i) = std::sqrt(clipped_thrust(i));
+      actuator_commands(i) = std::sqrt(clipped_thrust(i)); 
     }
 
     const float nan = std::numeric_limits<float>::quiet_NaN();
