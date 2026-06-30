@@ -34,10 +34,28 @@ namespace autopilot {
       void publish_offboard_request(
         const rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr& publisher,
         const int target_system);
-      Eigen::Matrix<double, 5, 1> mix_wrench() const;
+      Eigen::Matrix<double, 5, 5> build_physical_effectiveness_matrix() const;
+      Eigen::Matrix<double, 5, 1> normalized_wrench_to_physical(
+        const Eigen::Matrix<double, 5, 1>& u_norm) const;
+      Eigen::Matrix<double, 5, 1> allocate_thrust(
+        const Eigen::Matrix<double, 5, 5>& effectiveness,
+        const Eigen::Matrix<double, 5, 1>& u_phys) const;
+      Eigen::Matrix<double, 5, 1> thrust_to_motor_speed(
+        const Eigen::Matrix<double, 5, 1>& thrust) const;
+      Eigen::Matrix<double, 5, 1> thrust_to_normalized_motor_command(
+        const Eigen::Matrix<double, 5, 1>& thrust) const;
 
-      Eigen::Matrix<double, 6, 5> mixer_;
-      Eigen::Matrix<double, 6, 1> wrench_{Eigen::Matrix<double, 6, 1>::Zero()};
+      Eigen::Matrix<double, 5, 1> wrench_{Eigen::Matrix<double, 5, 1>::Zero()};
+      Eigen::Matrix<double, 5, 1> wrench_scale_{Eigen::Matrix<double, 5, 1>::Ones()};
+      Eigen::Matrix<double, 3, 4> quad_positions_;
+      Eigen::Matrix<double, 4, 1> quad_sigmas_;
+      Eigen::Matrix<double, 3, 1> fixed_wing_prop_position_;
+      Eigen::Matrix<double, 5, 1> motor_constants_;
+      Eigen::Matrix<double, 5, 1> max_rot_velocities_;
+      Eigen::Matrix<double, 5, 1> thrust_trim_;
+      double quad_moment_constant_{0.016};
+      double fixed_wing_moment_constant_{0.126};
+      double fixed_wing_sigma_{1.0};
 
       px4_msgs::msg::ActuatorMotors shuttle_motors_msg_;
       px4_msgs::msg::ActuatorMotors fixed_wing_motors_msg_;

@@ -17,14 +17,13 @@ MIXER_NORM_THRUST = [
     [ 1.0,  -1.0,   1.0,  -1.0, 3.9],
     [ 1.0,   1.0,  -1.0,  -1.0, 0.0],
     [ 0.0,   0.0,   0.0,   0.0, 1.0],
-    [ 0.0,   0.0,   0.0,   0.0, 0.0],
     [-0.25, -0.25, -0.25, -0.25, 0.0],
 ]
 
 TESTS = [
-    #('A quad collective -Fz', [0.0, 0.0, 0.0, 0.0, 0.0, -1.0], 'all four quad thrust fractions and commands should be 1.0'),
-    #('B fixed prop +Fx', [0.0, 0.0, 0.0, 1.0, 0.0, 0.0], 'fixed prop thrust fraction should increase; clipping is acceptable'),
-    ('C prop + quad lift', [0.0, 0.0, 0.0, 0.02, 0.0, -0.6], 'prop fraction near 0.1; q1/q3 compensate fixed-prop pitch moment'),
+    #('A quad collective -Fz', [0.0, 0.0, 0.0, 0.0, -1.0], 'all four quad thrust fractions and commands should be 1.0'),
+    #('B fixed prop +Fx', [0.0, 0.0, 0.0, 1.0, 0.0], 'fixed prop thrust fraction should increase; clipping is acceptable'),
+    ('C prop + quad lift', [0.0, 0.0, 0.0, 2.0, -90.0], 'prop fraction near 0.1; q1/q3 compensate fixed-prop pitch moment'),
 ]
 
 
@@ -154,10 +153,7 @@ class CombinedMixerTestNode(Node):
         self.latest_fixed_wing_servos = list(msg.control[:4])
 
     def expected_thrust_fractions_raw(self, wrench):
-        mixer_t = transpose(MIXER_NORM_THRUST)
-        normal_matrix = matmul(mixer_t, MIXER_NORM_THRUST)
-        normal_rhs = matvec(mixer_t, wrench)
-        return solve(normal_matrix, normal_rhs)
+        return solve(MIXER_NORM_THRUST, wrench)
 
     def expected_published_actuators(self, wrench):
         s_raw = self.expected_thrust_fractions_raw(wrench)
@@ -186,8 +182,8 @@ class CombinedMixerTestNode(Node):
         msg.wrench.torque.y = wrench[1]
         msg.wrench.torque.z = wrench[2]
         msg.wrench.force.x = wrench[3]
-        msg.wrench.force.y = wrench[4]
-        msg.wrench.force.z = wrench[5]
+        msg.wrench.force.y = 0.0
+        msg.wrench.force.z = wrench[4]
         self.wrench_pub.publish(msg)
 
     def stream_wrench(self, wrench, seconds):
@@ -205,11 +201,11 @@ class CombinedMixerTestNode(Node):
             self.expected_published_actuators(wrench)
         )
         achieved = matvec(MIXER_NORM_THRUST, s)
-        error = [wrench[i] - achieved[i] for i in range(6)]
+        error = [wrench[i] - achieved[i] for i in range(5)]
         clipped = any(abs(s_raw[i] - s[i]) > 1e-9 for i in range(len(s)))
 
         self.get_logger().info(f'Test: {label} - {note}')
-        self.get_logger().info(f'  command wrench [Mx My Mz Fx Fy Fz] = {fmt(wrench)}')
+        self.get_logger().info(f'  command wrench [Mx My Mz Fx Fz] = {fmt(wrench)}')
         self.get_logger().info(f'  expected raw thrust fractions = {fmt(s_raw)}')
         self.get_logger().info(f'  expected clipped thrust fractions = {fmt(s)}')
         if clipped:
@@ -233,13 +229,13 @@ class CombinedMixerTestNode(Node):
                 time.sleep(0.1)
 
         self.get_logger().info('Priming combined direct controller with zero wrench')
-        self.stream_wrench([0.0] * 6, self.prime_seconds)
+        self.stream_wrench([0.0] * 5, self.prime_seconds)
 
         self.get_logger().info('Starting axis validation. Watch the vehicle response for the note on each test.')
         for label, wrench, note in TESTS:
             self.stream_wrench(wrench, self.test_seconds)
             self.log_result(label, wrench, note)
-            self.stream_wrench([0.0] * 6, 2.0)
+            self.stream_wrench([0.0] * 5, 2.0)
 
 
 def main(args=None):
