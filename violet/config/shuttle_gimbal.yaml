@@ -1,0 +1,31 @@
+/**:
+  ros__parameters:
+    subscribers:
+      mode:
+        arm: "fmu/mode/arm"
+        disarm: "fmu/mode/disarm"
+        takeoff: "fmu/mode/takeoff"
+        orbit: "fmu/mode/orbit"
+        land: "fmu/mode/land"
+        kill: "fmu/mode/kill"
+        follow: "fmu/mode/follow"
+      state:
+        state: "fmu/telemetry/state"
+    publishers:
+      mode:
+        arm: "fmu/mode/arm"
+        disarm: "fmu/mode/disarm"
+        takeoff: "fmu/mode/takeoff"
+        orbit: "fmu/mode/orbit"
+        land: "fmu/mode/land"
+        kill: "fmu/mode/kill"
+        offboard: "fmu/in/offboard_control_mode"
+        request: "fmu/in/vehicle_command"
+    controllers:
+      type: "shuttle_rate_controller"
+      shuttleratecontroller:
+        publish_rate_hz: 50.0
+        subscribers:
+          rate_setpoint: "controller/in/rate_setpoint"
+        publishers:
+          setpoint: "fmu/in/vehicle_rates_setpoint"

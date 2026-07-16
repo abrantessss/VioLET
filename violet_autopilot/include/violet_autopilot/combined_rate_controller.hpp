@@ -2,6 +2,7 @@
 
 #include <Eigen/Dense>
 
+#include "geometry_msgs/msg/vector3_stamped.hpp"
 #include "geometry_msgs/msg/wrench_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -9,13 +10,15 @@
 #include "px4_msgs/msg/actuator_servos.hpp"
 #include "px4_msgs/msg/offboard_control_mode.hpp"
 #include "px4_msgs/msg/vehicle_command.hpp"
+#include "px4_msgs/msg/vehicle_rates_setpoint.hpp"
 
 #include <controller.hpp>
+#include <rate_controller.hpp>
 
 namespace autopilot {
-  class CombinedDirectController : public autopilot::Controller {
+  class CombinedRateController : public autopilot::Controller {
     public:
-      ~CombinedDirectController();
+      ~CombinedRateController();
 
       void initialize() override;
 
@@ -26,9 +29,14 @@ namespace autopilot {
       void set_attitude_rate(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v, const Eigen::Vector3d& eta) override;
 
       void set_path(const int type, const double* path) override;
+      void reset() override;
 
     protected:
       void on_wrench_callback(const geometry_msgs::msg::WrenchStamped::ConstSharedPtr msg);
+      void on_rate_setpoint_callback(const px4_msgs::msg::VehicleRatesSetpoint::ConstSharedPtr msg);
+      void on_force_setpoint_callback(const geometry_msgs::msg::Vector3Stamped::ConstSharedPtr msg);
+      void update_rate_controller(double dt);
+      void publish_wrench(const Eigen::Vector3d& torque_sp_Nm, const Eigen::Vector3d& force_sp_N);
       void publish_actuators();
       void publish_offboard_heartbeat();
       void publish_offboard_mode();
@@ -37,7 +45,7 @@ namespace autopilot {
         const int target_system);
       Eigen::Matrix<double, 5, 5> build_physical_effectiveness_matrix() const;
       Eigen::Matrix<double, 5, 1> normalized_wrench_to_physical(
-        const Eigen::Matrix<double, 5, 1>& u_norm) const;
+        const Eigen::Matrix<double, 5, 1>& u_command) const;
       Eigen::Matrix<double, 5, 1> allocate_thrust(
         const Eigen::Matrix<double, 5, 5>& effectiveness,
         const Eigen::Matrix<double, 5, 1>& u_phys) const;
@@ -70,17 +78,25 @@ namespace autopilot {
       rclcpp::Publisher<px4_msgs::msg::OffboardControlMode>::SharedPtr fixed_wing_offboard_pub_;
       rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr shuttle_mode_pub_;
       rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr fixed_wing_mode_pub_;
+      rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr wrench_pub_;
       rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr wrench_sub_;
+      rclcpp::Subscription<px4_msgs::msg::VehicleRatesSetpoint>::SharedPtr rate_setpoint_sub_;
+      rclcpp::Subscription<geometry_msgs::msg::Vector3Stamped>::SharedPtr force_setpoint_sub_;
       rclcpp::TimerBase::SharedPtr offboard_heartbeat_timer_;
 
       std::string fixed_wing_namespace_{"drone2"};
       int fixed_wing_vehicle_id_{2};
-      double publish_rate_hz_{50.0};
       double motor_min_{-1.0};
       double motor_max_{1.0};
       double servo_min_{-1.0};
       double servo_max_{1.0};
-      uint64_t last_publish_us_{0};
       bool have_wrench_{false};
+      RateController rate_controller_;
+      Eigen::Vector3d omega_sp_{Eigen::Vector3d::Zero()};
+      Eigen::Vector3d omega_measured_{Eigen::Vector3d::Zero()};
+      Eigen::Vector3d force_sp_{Eigen::Vector3d::Zero()};
+      bool have_rate_setpoint_{false};
+      bool have_angular_velocity_{false};
+      bool have_force_setpoint_{false};
   };
 }

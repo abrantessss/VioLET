@@ -1,6 +1,7 @@
 #include "combined_direct_controller.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -48,9 +49,6 @@ namespace autopilot {
     node_->declare_parameter<double>(
       "controllers.combineddirectcontroller.publish_rate_hz",
       50.0);
-    node_->declare_parameter<double>(
-      "controllers.combineddirectcontroller.damping",
-      0.01);
     node_->declare_parameter<double>(
       "controllers.combineddirectcontroller.limits.motor_min",
       -1.0);
@@ -110,8 +108,6 @@ namespace autopilot {
       node_->get_parameter("controllers.combineddirectcontroller.fixed_wing_vehicle_id").as_int();
     publish_rate_hz_ =
       node_->get_parameter("controllers.combineddirectcontroller.publish_rate_hz").as_double();
-    damping_ =
-      node_->get_parameter("controllers.combineddirectcontroller.damping").as_double();
     motor_min_ =
       node_->get_parameter("controllers.combineddirectcontroller.limits.motor_min").as_double();
     motor_max_ =
@@ -223,9 +219,6 @@ namespace autopilot {
     if (publish_rate_hz_ <= 0.0) {
       publish_rate_hz_ = 50.0;
     }
-    if (damping_ <= 0.0) {
-      damping_ = 0.01;
-    }
     if (motor_min_ > motor_max_) {
       std::swap(motor_min_, motor_max_);
     }
@@ -250,6 +243,10 @@ namespace autopilot {
         max_rot_velocities_(i) = default_max_rot_velocities(i);
       }
     }
+
+    offboard_heartbeat_timer_ = node_->create_wall_timer(
+      std::chrono::duration<double>(1.0 / publish_rate_hz_),
+      std::bind(&CombinedDirectController::publish_offboard_heartbeat, this));
 
     RCLCPP_INFO_STREAM(
       node_->get_logger(),
@@ -290,7 +287,6 @@ namespace autopilot {
   void CombinedDirectController::set_path(const int type, const double* path) {
     (void)type;
     (void)path;
-    request_offboard_until_us_ = node_->get_clock()->now().nanoseconds() / 1000 + 3000000;
   }
 
   void CombinedDirectController::on_wrench_callback(
@@ -320,7 +316,7 @@ namespace autopilot {
     Eigen::Matrix<double, 5, 5> effectiveness = Eigen::Matrix<double, 5, 5>::Zero();
 
     for (int i = 0; i < 4; ++i) {
-      effectiveness(0, i) = -quad_positions_(1, i);
+      effectiveness(0, i) = quad_positions_(1, i);
       effectiveness(1, i) = quad_positions_(0, i);
       effectiveness(2, i) = quad_sigmas_(i) * quad_moment_constant_;
       effectiveness(4, i) = -1.0;
@@ -407,12 +403,6 @@ namespace autopilot {
       shuttle_motors_msg_.control[i] =
         static_cast<float>(std::clamp(actuator_commands(i), motor_min_, motor_max_));
     }
-    publish_offboard_mode();
-
-    if (now_us < request_offboard_until_us_) {
-      publish_offboard_request(shuttle_mode_pub_, vehicle_id_);
-      publish_offboard_request(fixed_wing_mode_pub_, fixed_wing_vehicle_id_);
-    }
 
     shuttle_motors_pub_->publish(shuttle_motors_msg_);
 
@@ -478,6 +468,12 @@ namespace autopilot {
       fixed_wing_servos_msg_.control[1],
       fixed_wing_servos_msg_.control[2],
       fixed_wing_servos_msg_.control[3]);
+  }
+
+  void CombinedDirectController::publish_offboard_heartbeat() {
+    publish_offboard_mode();
+    publish_offboard_request(shuttle_mode_pub_, vehicle_id_);
+    publish_offboard_request(fixed_wing_mode_pub_, fixed_wing_vehicle_id_);
   }
 
   void CombinedDirectController::publish_offboard_mode() {

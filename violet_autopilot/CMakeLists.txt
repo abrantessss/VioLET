@@ -38,6 +38,8 @@ add_executable(${PROJECT_NAME}
   src/los3_controller.cpp
   src/los4_controller.cpp
   src/combined_direct_controller.cpp
+  src/combined_rate_controller.cpp
+  src/shuttle_rate_controller.cpp
 )
 
 # Add the ROS2 packages to link against
@@ -52,7 +54,21 @@ ament_target_dependencies(${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
   find_package(ament_lint_auto REQUIRED)
+  ament_add_gtest(rate_controller_test
+    src/combined_rate_controller.cpp
+  )
+  target_include_directories(rate_controller_test PRIVATE
+    include/violet_autopilot
+    ${EIGEN3_INCLUDE_DIR}
+  )
+  ament_target_dependencies(rate_controller_test
+    rclcpp
+    geometry_msgs
+    violet_msgs
+    px4_msgs
+  )
   # the following line skips the linter which checks for copyrights
   # uncomment the line when a copyright and license is not present in all source files
   #set(ament_cmake_copyright_FOUND TRUE)
