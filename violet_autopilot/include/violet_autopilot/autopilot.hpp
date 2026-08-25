@@ -10,6 +10,7 @@
 #include "los4_controller.hpp"
 #include "combined_direct_controller.hpp"
 #include "combined_rate_controller.hpp"
+#include "combined_attitude_controller.hpp"
 #include "shuttle_rate_controller.hpp"
 #include <Eigen/Dense>
 

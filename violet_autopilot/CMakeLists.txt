@@ -39,6 +39,7 @@ add_executable(${PROJECT_NAME}
   src/los4_controller.cpp
   src/combined_direct_controller.cpp
   src/combined_rate_controller.cpp
+  src/combined_attitude_controller.cpp
   src/shuttle_rate_controller.cpp
 )
 

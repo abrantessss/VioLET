@@ -4,19 +4,21 @@ import math
 import time
 
 import rclpy
-from geometry_msgs.msg import Vector3Stamped
-from px4_msgs.msg import ActuatorMotors, VehicleRatesSetpoint
+from geometry_msgs.msg import Vector3Stamped, WrenchStamped
+from px4_msgs.msg import ActuatorMotors, ActuatorServos
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
 from violet_msgs.msg import Mode, State, Trajectory
 
 
+AXES = {'roll': 0, 'pitch': 1, 'yaw': 2}
+
 TESTS = [
-    ('A roll +rate', [0.6, 0.0, 0.0], 'positive roll rate should create positive roll torque'),
-    ('B pitch +rate', [0.0, 0.6, 0.0], 'positive pitch rate should create positive pitch torque'),
-    ('C yaw +rate', [0.0, 0.0, 0.6], 'positive yaw rate should create positive yaw torque'),
-    ('D combined +rates', [0.6, 0.6, 0.6], 'multi-axis step should track all requested rate axes'),
+    ('A roll +angle', [0.15, 0.0, 0.0], 'positive roll angle should create positive roll torque'),
+    ('B pitch +angle', [0.0, 0.15, 0.0], 'positive pitch angle should create positive pitch torque'),
+    ('C yaw +angle', [0.0, 0.0, 0.15], 'positive yaw angle should create positive yaw torque'),
+    #('D combined +angles', [0.6, 0.6, 0.6], 'multi-axis step should command all attitude axes'),
 ]
 
 
@@ -40,26 +42,31 @@ def fmt_metric(value, unit='s'):
     return f'{value:.2f}'
 
 
-class ShuttleRateControllerTestNode(Node):
+class CombinedAttitudeControllerTestNode(Node):
     def __init__(self):
-        super().__init__('shuttle_rate_controller_test_node')
+        super().__init__('combined_attitude_controller_test_node')
         self.declare_parameter('shuttle_ns', 'drone1')
+        self.declare_parameter('fixed_wing_ns', 'drone2')
         self.declare_parameter('test_seconds', 30.0)
         self.declare_parameter('settling_time', 1.0)
         self.declare_parameter('tolerance', 0.05)
-        self.declare_parameter('force_setpoint', [0.0, 0.0, -6.0])
-        self.declare_parameter('gains.roll.kp', 5.3)
-        self.declare_parameter('gains.pitch.kp', 4.5)
-        self.declare_parameter('gains.yaw.kp', 2.1)
-        self.declare_parameter('output_limits.roll', [-3.0, 3.0])
-        self.declare_parameter('output_limits.pitch', [-3.0, 3.0])
-        self.declare_parameter('output_limits.yaw', [-3.0, 3.0])
+        self.declare_parameter('force_setpoint',[1.0, 0.0, -6.0])
+        self.declare_parameter('gains.roll.kp', 0.25)
+        self.declare_parameter('gains.pitch.kp', 0.25)
+        self.declare_parameter('gains.yaw.kp', 0.10)
+        self.declare_parameter('attitude_gains.roll', 1.0)
+        self.declare_parameter('attitude_gains.pitch', 1.0)
+        self.declare_parameter('attitude_gains.yaw', 1.0)
+        self.declare_parameter('output_limits.roll', [-2.0, 2.0])
+        self.declare_parameter('output_limits.pitch', [-2.0, 2.0])
+        self.declare_parameter('output_limits.yaw', [-1.0, 1.0])
         self.declare_parameter('auto_arm', True)
         self.declare_parameter('auto_follow', True)
         self.declare_parameter('show_plot', True)
         self.declare_parameter('live_plot', False)
 
         self.shuttle_ns = self.get_parameter('shuttle_ns').value.strip('/')
+        self.fixed_wing_ns = self.get_parameter('fixed_wing_ns').value.strip('/')
         self.test_seconds = self.get_parameter('test_seconds').value
         self.settling_time = self.get_parameter('settling_time').value
         self.tolerance = self.get_parameter('tolerance').value
@@ -68,6 +75,11 @@ class ShuttleRateControllerTestNode(Node):
             self.get_parameter('gains.roll.kp').value,
             self.get_parameter('gains.pitch.kp').value,
             self.get_parameter('gains.yaw.kp').value,
+        ]
+        self.attitude_gains = [
+            self.get_parameter('attitude_gains.roll').value,
+            self.get_parameter('attitude_gains.pitch').value,
+            self.get_parameter('attitude_gains.yaw').value,
         ]
         self.output_limits = [
             list(self.get_parameter('output_limits.roll').value),
@@ -83,31 +95,36 @@ class ShuttleRateControllerTestNode(Node):
             self.get_logger().warn('force_setpoint must have three entries; using zeros')
             self.force_setpoint = [0.0, 0.0, 0.0]
         for axis, limits in enumerate(self.output_limits):
-            if len(limits) != 2 or limits[0] > limits[1]:
-                self.get_logger().warn(f'output limit axis {axis} invalid; using [-1, 1]')
+            if len(limits) != 2:
+                self.get_logger().warn(f'output limit axis {axis} must have two entries; using [-1, 1]')
                 self.output_limits[axis] = [-1.0, 1.0]
+            elif limits[0] > limits[1]:
+                self.output_limits[axis] = [limits[1], limits[0]]
 
+        self.latest_attitude = [math.nan, math.nan, math.nan]
         self.latest_omega = [math.nan, math.nan, math.nan]
-        self.latest_motors = None
+        self.latest_wrench = [math.nan, math.nan, math.nan, math.nan, math.nan]
+        self.latest_shuttle_motors = None
+        self.latest_fixed_wing_motors = None
+        self.latest_fixed_wing_servos = None
         self.samples = []
         self.plt = None
         self.plot_fig = None
         self.plot_axes = None
         self.plot_lines = None
 
-        self.arm_pub = self.create_publisher(
-            Mode,
-            f'/{self.shuttle_ns}/fmu/mode/arm',
-            qos_profile_sensor_data,
-        )
+        self.arm_pubs = [
+            self.create_publisher(Mode, f'/{self.shuttle_ns}/fmu/mode/arm', qos_profile_sensor_data),
+            self.create_publisher(Mode, f'/{self.fixed_wing_ns}/fmu/mode/arm', qos_profile_sensor_data),
+        ]
         self.follow_pub = self.create_publisher(
             Trajectory,
             f'/{self.shuttle_ns}/fmu/mode/follow',
             qos_profile_sensor_data,
         )
-        self.rate_pub = self.create_publisher(
-            VehicleRatesSetpoint,
-            f'/{self.shuttle_ns}/controller/in/rate_setpoint',
+        self.attitude_pub = self.create_publisher(
+            Vector3Stamped,
+            f'/{self.shuttle_ns}/controller/in/attitude_setpoint',
             qos_profile_sensor_data,
         )
         self.force_pub = self.create_publisher(
@@ -123,36 +140,94 @@ class ShuttleRateControllerTestNode(Node):
             qos_profile_sensor_data,
         )
         self.create_subscription(
+            WrenchStamped,
+            f'/{self.shuttle_ns}/fmu/in/combined_wrench',
+            self.on_wrench,
+            qos_profile_sensor_data,
+        )
+        self.create_subscription(
             ActuatorMotors,
             f'/{self.shuttle_ns}/fmu/in/actuator_motors',
-            self.on_motors,
+            self.on_shuttle_motors,
+            qos_profile_sensor_data,
+        )
+        self.create_subscription(
+            ActuatorMotors,
+            f'/{self.fixed_wing_ns}/fmu/in/actuator_motors',
+            self.on_fixed_wing_motors,
+            qos_profile_sensor_data,
+        )
+        self.create_subscription(
+            ActuatorServos,
+            f'/{self.fixed_wing_ns}/fmu/in/actuator_servos',
+            self.on_fixed_wing_servos,
             qos_profile_sensor_data,
         )
 
     def on_state(self, msg):
+        self.latest_attitude = [
+            float(msg.attitude[0]),
+            float(msg.attitude[1]),
+            float(msg.attitude[2]),
+        ]
         self.latest_omega = [
             float(msg.angular_velocity[0]),
             float(msg.angular_velocity[1]),
             float(msg.angular_velocity[2]),
         ]
 
-    def on_motors(self, msg):
-        self.latest_motors = list(msg.control[:4])
+    def on_wrench(self, msg):
+        self.latest_wrench = [
+            float(msg.wrench.torque.x),
+            float(msg.wrench.torque.y),
+            float(msg.wrench.torque.z),
+            float(msg.wrench.force.x),
+            float(msg.wrench.force.z),
+        ]
 
-    def expected_torque(self, sp, omega=None):
+    def on_shuttle_motors(self, msg):
+        self.latest_shuttle_motors = list(msg.control[:4])
+
+    def on_fixed_wing_motors(self, msg):
+        self.latest_fixed_wing_motors = [msg.control[0]]
+
+    def on_fixed_wing_servos(self, msg):
+        self.latest_fixed_wing_servos = list(msg.control[:4])
+
+    def expected_body_rate(self, sp, attitude=None):
+        attitude = self.latest_attitude if attitude is None else attitude
+        if not all(math.isfinite(value) for value in attitude):
+            return [math.nan, math.nan, math.nan]
+
+        error = [
+            math.atan2(math.sin(sp[i] - attitude[i]), math.cos(sp[i] - attitude[i]))
+            for i in range(3)
+        ]
+        euler_rate = [self.attitude_gains[i] * error[i] for i in range(3)]
+        phi, theta = attitude[0], attitude[1]
+        phi_dot, theta_dot, psi_dot = euler_rate
+        return [
+            phi_dot - math.sin(theta) * psi_dot,
+            math.cos(phi) * theta_dot + math.sin(phi) * math.cos(theta) * psi_dot,
+            -math.sin(phi) * theta_dot + math.cos(phi) * math.cos(theta) * psi_dot,
+        ]
+
+    def expected_torque(self, sp, attitude=None, omega=None):
+        omega_sp = self.expected_body_rate(sp, attitude)
         omega = self.latest_omega if omega is None else omega
         torque = []
         for axis in range(3):
-            if math.isfinite(omega[axis]):
-                # Simplified to P-controller for test validation
-                raw = self.gains[axis] * (sp[axis] - omega[axis])
+            if math.isfinite(omega_sp[axis]) and math.isfinite(omega[axis]):
+                raw = self.gains[axis] * (omega_sp[axis] - omega[axis])
             else:
                 raw = math.nan
             torque.append(clamp(raw, self.output_limits[axis][0], self.output_limits[axis][1]))
         return torque
- 
+
     def publish_arm(self):
-        self.arm_pub.publish(Mode())
+        msg = Mode()
+        for pub in self.arm_pubs:
+            pub.publish(msg)
 
     def publish_follow_trigger(self):
         msg = Trajectory()
@@ -162,24 +237,24 @@ class ShuttleRateControllerTestNode(Node):
     def publish_force_setpoint(self):
         msg = Vector3Stamped()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = 'shuttle_body'
+        msg.header.frame_id = 'combined_body'
         msg.vector.x = float(self.force_setpoint[0])
         msg.vector.y = float(self.force_setpoint[1])
         msg.vector.z = float(self.force_setpoint[2])
         self.force_pub.publish(msg)
 
-    def publish_rate_setpoint(self, sp, reset_integral=False):
-        msg = VehicleRatesSetpoint()
-        msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
-        msg.roll = float(sp[0])
-        msg.pitch = float(sp[1])
-        msg.yaw = float(sp[2])
-        msg.thrust_body = [0.0, 0.0, 0.0]  # Not used by the new controller
-        msg.reset_integral = reset_integral
-        self.rate_pub.publish(msg)
+    def publish_attitude_setpoint(self, sp):
+        msg = Vector3Stamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'combined_body'
+        msg.vector.x = float(sp[0])
+        msg.vector.y = float(sp[1])
+        msg.vector.z = float(sp[2])
+        self.attitude_pub.publish(msg)
 
-    def publish_controller_setpoints(self, sp, reset_integral=False):
-        self.publish_rate_setpoint(sp, reset_integral)
+    def publish_allocator_setpoint(self, sp, reset_integral=False):
+        del reset_integral
+        self.publish_attitude_setpoint(sp)
         self.publish_force_setpoint()
         if self.auto_follow:
             self.publish_follow_trigger()
@@ -189,9 +264,9 @@ class ShuttleRateControllerTestNode(Node):
             self.get_clock().now().nanoseconds * 1e-9,
             label,
             sp[:],
-            self.latest_omega[:],
+            self.latest_attitude[:],
             self.expected_torque(sp),
-            (self.latest_motors or [math.nan] * 4)[:],
+            self.latest_wrench[:],
         )
 
         if not force and self.samples:
@@ -200,7 +275,6 @@ class ShuttleRateControllerTestNode(Node):
                 previous[1] == sample[1] and
                 previous[2] == sample[2] and
                 previous[3] == sample[3] and
-                previous[4] == sample[4] and
                 previous[5] == sample[5])
             if unchanged:
                 return
@@ -209,37 +283,41 @@ class ShuttleRateControllerTestNode(Node):
         if self.live_plot:
             self.update_live_plot()
 
-    def stream_rate_setpoint(self, sp, seconds, label='segment', reset_integral=False):
+    def stream_attitude_setpoint(self, sp, seconds, label='segment', reset_integral=False):
         end_time = time.monotonic() + seconds
         first = True
         while rclpy.ok() and time.monotonic() < end_time:
-            self.publish_controller_setpoints(sp, reset_integral and first)
+            if self.auto_follow:
+                self.publish_allocator_setpoint(sp, reset_integral and first)
+            else:
+                self.publish_attitude_setpoint(sp)
+                self.publish_force_setpoint()
             rclpy.spin_once(self, timeout_sec=0.0)
+
             self.record_sample(sp, label, force=first)
             first = False
         self.record_sample(sp, label, force=True)
 
     def log_result(self, label, sp, note):
-        expected_torque = self.expected_torque(sp)
-        rate_error = [
-            sp[i] - self.latest_omega[i]
-            if math.isfinite(self.latest_omega[i])
-            else math.nan
-            for i in range(3)
-        ]
+        expected = self.expected_torque(sp)
         torque_error = [
-            expected_torque[i] - self.latest_omega[i]
-            if math.isfinite(expected_torque[i]) and math.isfinite(self.latest_omega[i])
+            expected[i] - self.latest_wrench[i]
+            if math.isfinite(expected[i]) and math.isfinite(self.latest_wrench[i])
             else math.nan
             for i in range(3)
         ]
 
         self.get_logger().info(f'Test: {label} - {note}')
-        self.get_logger().info(f'  command omega_sp [roll pitch yaw] rad/s = {fmt(sp)}')
+        self.get_logger().info(f'  command attitude_sp [roll pitch yaw] rad = {fmt(sp)}')
+        self.get_logger().info(
+            f'  observed attitude [roll pitch yaw] rad = {fmt(self.latest_attitude)}')
         self.get_logger().info(f'  observed omega [roll pitch yaw] rad/s = {fmt(self.latest_omega)}')
-        self.get_logger().info(f'  rate residual command-observed = {fmt(rate_error)}')
-        self.get_logger().info(f'  force_setpoint = {fmt(self.force_setpoint)}')
-        self.get_logger().info(f'  observed shuttle motors = {fmt(self.latest_motors or [math.nan] * 4)}')
+        self.get_logger().info(f'  expected torque from P gains = {fmt(expected)}')
+        self.get_logger().info(f'  observed wrench [Mx My Mz Fx Fz] = {fmt(self.latest_wrench)}')
+        self.get_logger().info(f'  torque residual expected-observed = {fmt(torque_error)}')
+        self.get_logger().info(f'  observed shuttle motors = {fmt(self.latest_shuttle_motors or [math.nan] * 4)}')
+        self.get_logger().info(f'  observed fixed prop = {fmt(self.latest_fixed_wing_motors or [math.nan])}')
+        self.get_logger().info(f'  observed servos [disabled] = {fmt(self.latest_fixed_wing_servos or [math.nan] * 4)}')
 
     def load_matplotlib(self):
         if not self.show_plot:
@@ -249,7 +327,10 @@ class ShuttleRateControllerTestNode(Node):
         try:
             import matplotlib.pyplot as plt
         except (AttributeError, ImportError) as error:
-            self.get_logger().error(f'Could not import matplotlib for plotting: {error}')
+            self.get_logger().error(
+                'Could not import matplotlib for plotting. Your Python is likely mixing '
+                'NumPy 2.x from ~/.local with an older system Matplotlib built for NumPy 1.x. '
+                f'Original error: {error}')
             self.show_plot = False
             return False
         self.plt = plt
@@ -257,15 +338,14 @@ class ShuttleRateControllerTestNode(Node):
 
     def sample_series(self):
         if not self.samples:
-            return [], [], [], [], [], []
+            return [], [], [], [], []
         t0 = self.samples[0][0]
         return (
             [row[0] - t0 for row in self.samples],
             [row[1] for row in self.samples],
             [row[2] for row in self.samples],
             [row[3] for row in self.samples],
-            [row[4] for row in self.samples], # expected_torque
-            [row[5] for row in self.samples], # motors
+            [row[5][:3] for row in self.samples],
         )
 
     def crossing_time(self, times, values, threshold, direction):
@@ -333,15 +413,19 @@ class ShuttleRateControllerTestNode(Node):
     def log_step_response_metrics(self):
         axis_names = ('roll', 'pitch', 'yaw')
         self.get_logger().info(
-            f'Step response metrics by shuttle rate controller (settle band: +/-{self.tolerance:.3f} rad/s)')
+            f'Step response metrics by attitude controller (settle band: +/-{self.tolerance:.3f} rad)')
         for label, sp, _ in TESTS:
             active_axes = [axis for axis, value in enumerate(sp) if abs(value) > 1e-9]
+            if not active_axes:
+                continue
+
             self.get_logger().info(f'  {label}:')
             for axis in active_axes:
                 metrics = self.step_response_metrics(f'{label} step', axis)
                 if metrics is None:
                     self.get_logger().info(f'    {axis_names[axis]}: insufficient data')
                     continue
+
                 self.get_logger().info(
                     f'    {axis_names[axis]}: '
                     f'overshoot={fmt_metric(metrics["overshoot"], "%")}, '
@@ -355,39 +439,38 @@ class ShuttleRateControllerTestNode(Node):
         self.plt.ion()
         self.plot_fig, self.plot_axes = self.plt.subplots(4, 1, sharex=True, figsize=(12, 10))
         axis_names = ('roll', 'pitch', 'yaw')
-        self.plot_lines = {'sp': [], 'omega': [], 'motor': []}
+        self.plot_lines = {'sp': [], 'attitude': [], 'torque': []}
 
         for axis, name in enumerate(axis_names):
             sp_line, = self.plot_axes[axis].step([], [], where='post', label=f'{name} step')
-            omega_line, = self.plot_axes[axis].plot([], [], label=f'{name} measured')
+            attitude_line, = self.plot_axes[axis].plot([], [], label=f'{name} measured')
             self.plot_lines['sp'].append(sp_line)
-            self.plot_lines['omega'].append(omega_line)
-            self.plot_axes[axis].set_ylabel('rad/s')
+            self.plot_lines['attitude'].append(attitude_line)
+            self.plot_axes[axis].set_ylabel('rad')
             self.plot_axes[axis].grid(True, alpha=0.3)
             self.plot_axes[axis].legend(loc='upper right')
 
-        for motor in range(4):
-            motor_line, = self.plot_axes[3].plot([], [], label=f'motor {motor}')
-            self.plot_lines['motor'].append(motor_line)
-        self.plot_axes[3].set_ylabel('cmd')
+        for name in axis_names:
+            torque_line, = self.plot_axes[3].plot([], [], label=f'{name} torque')
+            self.plot_lines['torque'].append(torque_line)
+        self.plot_axes[3].set_ylabel('Nm')
         self.plot_axes[3].set_xlabel('time [s]')
         self.plot_axes[3].grid(True, alpha=0.3)
         self.plot_axes[3].legend(loc='upper right')
-        self.plot_fig.suptitle('Shuttle rate controller step response')
+        self.plot_fig.suptitle('Combined attitude controller step response')
         self.plot_fig.tight_layout()
         self.plot_fig.show()
 
     def update_live_plot(self, force=False):
         if not self.live_plot or self.plot_fig is None or not self.samples:
             return
-        _ = force
 
-        time_s, _, setpoints, omegas, expected_torques, motors = self.sample_series()
+        time_s, _, setpoints, attitudes, torques = self.sample_series()
         for axis in range(3):
             self.plot_lines['sp'][axis].set_data(time_s, [sp[axis] for sp in setpoints])
-            self.plot_lines['omega'][axis].set_data(time_s, [omega[axis] for omega in omegas])
-        for motor in range(4):
-            self.plot_lines['motor'][motor].set_data(time_s, [values[motor] for values in motors])
+            self.plot_lines['attitude'][axis].set_data(
+                time_s, [attitude[axis] for attitude in attitudes])
+            self.plot_lines['torque'][axis].set_data(time_s, [torque[axis] for torque in torques])
 
         for axis in self.plot_axes:
             axis.relim()
@@ -405,20 +488,22 @@ class ShuttleRateControllerTestNode(Node):
             self.plt.show()
             return
 
-        time_s, labels, setpoints, omegas, expected_torques, motors = self.sample_series()
+        time_s, labels, setpoints, attitudes, torques = self.sample_series()
         fig, axes = self.plt.subplots(4, 1, sharex=True, figsize=(12, 10))
         axis_names = ('roll', 'pitch', 'yaw')
 
         for axis, name in enumerate(axis_names):
-            axes[axis].step(time_s, [sp[axis] for sp in setpoints], where='post', label=f'{name} step')
-            axes[axis].plot(time_s, [omega[axis] for omega in omegas], label=f'{name} measured')
-            axes[axis].set_ylabel('rad/s')
+            sp_values = [sp[axis] for sp in setpoints]
+            attitude_values = [attitude[axis] for attitude in attitudes]
+            axes[axis].step(time_s, sp_values, where='post', label=f'{name} step')
+            axes[axis].plot(time_s, attitude_values, label=f'{name} measured')
+            axes[axis].set_ylabel('rad')
             axes[axis].grid(True, alpha=0.3)
             axes[axis].legend(loc='upper right')
 
-        for motor in range(4):
-            axes[3].plot(time_s, [values[motor] for values in motors], label=f'motor {motor}')
-        axes[3].set_ylabel('cmd')
+        for axis, name in enumerate(axis_names):
+            axes[3].plot(time_s, [torque[axis] for torque in torques], label=f'{name} torque')
+        axes[3].set_ylabel('Nm')
         axes[3].set_xlabel('time [s]')
         axes[3].grid(True, alpha=0.3)
         axes[3].legend(loc='upper right')
@@ -438,7 +523,7 @@ class ShuttleRateControllerTestNode(Node):
                     axis.text(stamp, ymax, label, rotation=90, va='top', ha='right', fontsize=8)
             axis.set_ylim(ymin, ymax)
 
-        fig.suptitle('Shuttle rate controller step response')
+        fig.suptitle('Combined attitude controller step response')
         fig.tight_layout()
         self.plt.show()
 
@@ -464,20 +549,22 @@ class ShuttleRateControllerTestNode(Node):
 
     def run(self):
         if self.auto_arm:
-            self.get_logger().info(f'Arming /{self.shuttle_ns} with zero rate setpoint')
+            self.get_logger().info(
+                f'Arming /{self.shuttle_ns} and /{self.fixed_wing_ns} with zero allocator setpoint')
             self.publish_arm()
-            self.publish_controller_setpoints([0.0, 0.0, 0.0], reset_integral=True)
+            self.publish_allocator_setpoint([0.0, 0.0, 0.0], reset_integral=True)
             rclpy.spin_once(self, timeout_sec=0.0)
 
         self.setup_live_plot()
 
-        self.get_logger().info('Starting shuttle rate controller validation.')
+        self.get_logger().info('Starting attitude validation. Watch the vehicle response for the note on each test.')
         results = []
         for label, sp, note in TESTS:
             self.get_logger().info(f'Starting test: {label} - {note}')
             half_test_seconds = 0.5 * self.test_seconds
-            self.stream_rate_setpoint(sp, half_test_seconds, f'{label} step', reset_integral=True)
-            self.stream_rate_setpoint(
+            self.stream_attitude_setpoint(
+                sp, half_test_seconds, f'{label} step', reset_integral=True)
+            self.stream_attitude_setpoint(
                 [0.0, 0.0, 0.0],
                 half_test_seconds,
                 f'{label} return',
@@ -493,7 +580,7 @@ class ShuttleRateControllerTestNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ShuttleRateControllerTestNode()
+    node = CombinedAttitudeControllerTestNode()
     try:
         node.run()
     except KeyboardInterrupt:

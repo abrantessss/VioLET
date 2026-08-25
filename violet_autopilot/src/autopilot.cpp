@@ -26,6 +26,8 @@ void Autopilot::update() {
       } else if (
         controller_type_ == "combined_rate_controller" ||
         controller_type_ == "combinedratecontroller" ||
+        controller_type_ == "combined_attitude_controller" ||
+        controller_type_ == "combinedattitudecontroller" ||
         controller_type_ == "shuttle_rate_controller" ||
         controller_type_ == "shuttleratecontroller") {
         controller_->set_attitude_rate(dt, state_.position, state_.inertial_velocity, state_.angular_velocity);
@@ -63,6 +65,8 @@ void Autopilot::init_controller() {
     controller_ = std::make_unique<autopilot::CombinedDirectController>();
   } else if (controller_type_ == "combined_rate_controller" || controller_type_ == "combinedratecontroller") {
     controller_ = std::make_unique<autopilot::CombinedRateController>();
+  } else if (controller_type_ == "combined_attitude_controller" || controller_type_ == "combinedattitudecontroller") {
+    controller_ = std::make_unique<autopilot::CombinedAttitudeController>();
   } else if (controller_type_ == "shuttle_rate_controller" || controller_type_ == "shuttleratecontroller") {
     controller_ = std::make_unique<autopilot::ShuttleRateController>();
   } else {

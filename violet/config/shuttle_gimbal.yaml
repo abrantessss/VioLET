@@ -24,8 +24,44 @@
     controllers:
       type: "shuttle_rate_controller"
       shuttleratecontroller:
-        publish_rate_hz: 50.0
+        gain_form: "parallel"
+        gains:
+          roll:
+            kp: 0.1
+            ki: 0.0
+            kd: 0.0
+          pitch:
+            kp: 0.1
+            ki: 0.0
+            kd: 0.0
+          yaw:
+            kp: 0.1
+            ki: 0.0
+            kd: 0.0
+        limits:
+          motor_min: -1.0
+          motor_max: 1.0
+        output_limits:
+          roll: [-3.0, 3.0]
+          pitch: [-3.0, 3.0]
+          yaw: [-3.0, 3.0]
+        integral_limits:
+          roll: [-5.0, 5.0]
+          pitch: [-5.0, 5.0]
+          yaw: [-5.0, 5.0]
+        quad_positions:
+          [0.248, -0.248, -0.51,
+          -0.248,  0.248, -0.51,
+           0.248,  0.248, -0.51,
+          -0.248, -0.248, -0.51]
+        quad_sigmas: [1.0, 1.0, -1.0, -1.0]
+        quad_moment_constant: 0.016
+        motor_constants: [1.709716e-05, 1.709716e-05, 1.709716e-05, 1.709716e-05]
+        max_rot_velocities: [1400.0, 1400.0, 1400.0, 1400.0]
+        thrust_trim: [0.0, 0.0, 0.0, 0.0]
         subscribers:
           rate_setpoint: "controller/in/rate_setpoint"
+          force_setpoint: "controller/in/force_setpoint"
         publishers:
-          setpoint: "fmu/in/vehicle_rates_setpoint"
+          shuttle_motors: "fmu/in/actuator_motors"
+          wrench: "controller/out/wrench"

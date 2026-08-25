@@ -30,6 +30,7 @@ setup(
             'shuttle_waypoint = violet_scripts.shuttle_waypoint:main',
             'combined_mixer_test = violet_scripts.combined_mixer_test:main',
             'combined_rate_controller_test = violet_scripts.combined_rate_controller_test:main',
+            'combined_attitude_controller_test = violet_scripts.combined_attitude_controller_test:main',
             'shuttle_rate_controller_test = violet_scripts.shuttle_rate_controller_test:main',
         ],
     },

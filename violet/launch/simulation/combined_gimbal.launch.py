@@ -56,7 +56,8 @@ def generate_launch_description():
         'z': '5.4',
         'R': '0',
         'P': '0',
-        'Y': '-1.5781',
+        # Gazebo uses ENU; +pi/2 ENU corresponds to yaw 0 in PX4 NED.
+        'Y': '1.57079632679',
         'vehicle_id': '1',
         'vehicle_model': 'shuttle',
         'vehicle_sdf_model': 'shuttle_arm',
@@ -74,7 +75,7 @@ def generate_launch_description():
         'z': '4.9',
         'R': '0',
         'P': '0',
-        'Y': '-1.5781',
+        'Y': '1.57079632679',
         'vehicle_id': '2',
         'vehicle_model': 'easyglider',
         'vehicle_sdf_model': 'easyglider',
