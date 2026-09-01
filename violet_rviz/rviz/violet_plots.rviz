@@ -350,6 +350,283 @@ Visualization Manager:
         Reliability: Reliable
         Durability: Volatile
         Depth: 10
+    - Class: rviz_2d_plot_plugin/Plot2D
+      Enabled: true
+      Name: Yaw Tracking
+      Plot Mode: Time Series
+      Series:
+        Series Count: 2
+        Series 1:
+          Value: true
+          Topic: /drone1/rviz_plots/yaw/reference
+          Field: data
+          Label: Yaw Reference
+          Unit: rad
+          Color: 255; 170; 60
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Dash
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 2:
+          Value: true
+          Topic: /drone1/rviz_plots/yaw/measured
+          Field: data
+          Label: Yaw Measured
+          Unit: rad
+          Color: 80; 170; 255
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+      Time:
+        Time Source: Receive Time
+        Window Seconds: 60
+        Refresh Rate: 20
+      Y Axis:
+        Auto Scale: false
+        Y Min: -3.2
+        Y Max: 3.2
+      References:
+        Reference Count: 1
+        Reference 1:
+          Value: true
+          Y Value: 0
+          Tolerance: 0
+          Label: Zero
+          Color: 180; 180; 180
+          Alpha: 0.65
+          Line Width: 1
+          Line Style: Dot
+      Legend:
+        Enabled: true
+        Show Values: true
+        Position: Top Right
+        X Offset: 4
+        Y Offset: 4
+      Layout:
+        Width: 470
+        Height: 240
+        X Offset: 10
+        Y Offset: 10
+        Horizontal Alignment: Center
+        Vertical Alignment: Top
+      Style:
+        Background Color: 0; 0; 0
+        Background Alpha: 0.74
+        Axis Color: 230; 230; 230
+        Grid Color: 130; 130; 130
+        Text Color: 245; 245; 245
+        Font Size: 8
+      QoS:
+        Reliability: Reliable
+        Durability: Volatile
+        Depth: 10
+    - Class: rviz_2d_plot_plugin/Plot2D
+      Enabled: true
+      Name: Force Tracking
+      Plot Mode: Time Series
+      Series:
+        Series Count: 4
+        Series 1:
+          Value: true
+          Topic: /drone1/rviz_plots/forces/tx_reference
+          Field: data
+          Label: Tx Reference
+          Unit: N
+          Color: 255; 170; 60
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Dash
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 2:
+          Value: true
+          Topic: /drone1/rviz_plots/forces/tx_achieved
+          Field: data
+          Label: Tx Achieved
+          Unit: N
+          Color: 80; 170; 255
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 3:
+          Value: true
+          Topic: /drone1/rviz_plots/forces/tz_reference
+          Field: data
+          Label: Tz Reference
+          Unit: N
+          Color: 255; 120; 180
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Dash
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 4:
+          Value: true
+          Topic: /drone1/rviz_plots/forces/tz_achieved
+          Field: data
+          Label: Tz Achieved
+          Unit: N
+          Color: 80; 220; 130
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+      Time:
+        Time Source: Receive Time
+        Window Seconds: 60
+        Refresh Rate: 20
+      Y Axis:
+        Auto Scale: true
+        Y Min: -1
+        Y Max: 1
+      References:
+        Reference Count: 1
+        Reference 1:
+          Value: true
+          Y Value: 0
+          Tolerance: 0
+          Label: Zero
+          Color: 180; 180; 180
+          Alpha: 0.65
+          Line Width: 1
+          Line Style: Dot
+      Legend:
+        Enabled: true
+        Show Values: true
+        Position: Top Right
+        X Offset: 4
+        Y Offset: 4
+      Layout:
+        Width: 470
+        Height: 240
+        X Offset: 10
+        Y Offset: 270
+        Horizontal Alignment: Center
+        Vertical Alignment: Top
+      Style:
+        Background Color: 0; 0; 0
+        Background Alpha: 0.74
+        Axis Color: 230; 230; 230
+        Grid Color: 130; 130; 130
+        Text Color: 245; 245; 245
+        Font Size: 8
+      QoS:
+        Reliability: Reliable
+        Durability: Volatile
+        Depth: 10
+    - Class: rviz_2d_plot_plugin/Plot2D
+      Enabled: true
+      Name: Controller Velocity Tracking
+      Plot Mode: Time Series
+      Series:
+        Series Count: 4
+        Series 1:
+          Value: true
+          Topic: /drone1/rviz_plots/velocity/u_reference
+          Field: data
+          Label: U Reference
+          Unit: m/s
+          Color: 255; 170; 60
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Dash
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 2:
+          Value: true
+          Topic: /drone1/rviz_plots/velocity/u_measured
+          Field: data
+          Label: U Measured
+          Unit: m/s
+          Color: 80; 170; 255
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 3:
+          Value: true
+          Topic: /drone1/rviz_plots/velocity/up_reference
+          Field: data
+          Label: Up Velocity Reference
+          Unit: m/s
+          Color: 255; 120; 180
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Dash
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 4:
+          Value: true
+          Topic: /drone1/rviz_plots/velocity/up_measured
+          Field: data
+          Label: Up Velocity Measured
+          Unit: m/s
+          Color: 80; 220; 130
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+      Time:
+        Time Source: Receive Time
+        Window Seconds: 60
+        Refresh Rate: 20
+      Y Axis:
+        Auto Scale: true
+        Y Min: -1
+        Y Max: 1
+      References:
+        Reference Count: 1
+        Reference 1:
+          Value: true
+          Y Value: 0
+          Tolerance: 0
+          Label: Zero
+          Color: 180; 180; 180
+          Alpha: 0.65
+          Line Width: 1
+          Line Style: Dot
+      Legend:
+        Enabled: true
+        Show Values: true
+        Position: Top Right
+        X Offset: 4
+        Y Offset: 4
+      Layout:
+        Width: 570
+        Height: 270
+        X Offset: 10
+        Y Offset: 10
+        Horizontal Alignment: Center
+        Vertical Alignment: Bottom
+      Style:
+        Background Color: 0; 0; 0
+        Background Alpha: 0.74
+        Axis Color: 230; 230; 230
+        Grid Color: 130; 130; 130
+        Text Color: 245; 245; 245
+        Font Size: 8
+      QoS:
+        Reliability: Reliable
+        Durability: Volatile
+        Depth: 10
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48

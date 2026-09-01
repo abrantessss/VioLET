@@ -53,7 +53,7 @@ def generate_launch_description():
       launch_arguments={
         'x': '0',
         'y': '0',
-        'z': '2.4',
+        'z': '0.4',
         'R': '0',
         'P': '0',
         # Gazebo uses ENU; +pi/2 ENU corresponds to yaw 0 in PX4 NED.
@@ -72,7 +72,7 @@ def generate_launch_description():
       launch_arguments={
         'x': '-0.00108377',
         'y': '-0.223943',
-        'z': '2',
+        'z': '0',
         'R': '0',
         'P': '0',
         'Y': '1.57079632679',

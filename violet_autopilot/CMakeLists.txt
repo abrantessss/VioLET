@@ -40,6 +40,7 @@ add_executable(${PROJECT_NAME}
   src/combined_direct_controller.cpp
   src/combined_rate_controller.cpp
   src/combined_attitude_controller.cpp
+  src/combined_vehicle_controller.cpp
   src/shuttle_rate_controller.cpp
 )
 

@@ -74,16 +74,6 @@
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
-      <model name='helipad'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='helipad_link'>
-          <pose>0 0 0 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>nan nan nan nan nan nan</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
       <light name='sun'>
         <pose>0 0 10 0 -0 0</pose>
       </light>
@@ -102,46 +92,6 @@
         <projection_type>perspective</projection_type>
       </camera>
     </gui>
-    <model name='helipad'>
-      <static>1</static>
-      <link name='helipad_link'>
-        <collision name='helipad_collision'>
-          <pose>0 0 -0.05 0 0 0</pose>
-          <geometry>
-            <box>
-              <size> 20 20 3.5</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='seabed'>
-          <cast_shadows>0</cast_shadows>
-          <pose>0 0 0 1.571 0 0</pose>
-          <geometry>
-            <mesh>
-              <uri>model://helipad/meshes/result.dae</uri>
-              <scale>0.01 0.01 0.01</scale>
-            </mesh>
-          </geometry>
-        </visual>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-      <pose>-2.06452 -1.70721 0 0 -0 0</pose>
-    </model>
     <model name='ground_plane'>
       <static>1</static>
       <link name='link'>
