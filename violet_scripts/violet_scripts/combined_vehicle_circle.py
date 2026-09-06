@@ -7,7 +7,7 @@ from violet_scripts.combined_vehicle_mission_base import CombinedVehicleMissionN
 class CombinedVehicleCircleNode(CombinedVehicleMissionNode):
     def __init__(self):
         super().__init__('combined_vehicle_circle_node', 'circle')
-        self.declare_parameter('circle', [0.0, 0.0, -4.0, 7.0, 0.25])
+        self.declare_parameter('circle', [0.0, 0.0, -4.0, 30.0, 2.0])
 
     def build_trajectory(self):
         trajectory = Trajectory()

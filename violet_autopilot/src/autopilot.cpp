@@ -1,10 +1,21 @@
 #include "autopilot.hpp"
 
+#include <cmath>
+
 Autopilot::Autopilot() : rclcpp::Node("autopilot_node") {}
 
 Autopilot::~Autopilot() {}
 
 void Autopilot::start() {
+
+  this->declare_parameter<double>("controllers.update_rate_hz", 100.0);
+  control_update_rate_hz_ = this->get_parameter("controllers.update_rate_hz").as_double();
+  if (!std::isfinite(control_update_rate_hz_) || control_update_rate_hz_ <= 0.0) {
+    RCLCPP_WARN(
+      this->get_logger(),
+      "controllers.update_rate_hz must be positive and finite; using 100 Hz");
+    control_update_rate_hz_ = 100.0;
+  }
 
   // initialise parameters, subs, pubs and services
   init_publishers();
@@ -13,7 +24,11 @@ void Autopilot::start() {
 }
 
 void Autopilot::update() {
+  rclcpp::WallRate loop_rate(control_update_rate_hz_);
   while (rclcpp::ok()) {
+    // Process fresh telemetry and mode commands before computing control.
+    rclcpp::spin_some(this->get_node_base_interface());
+
     if (current_mode_ == Mode::FOLLOW) {
       tnow_ = this->get_clock()->now().nanoseconds() / 1e9;
       double dt = tnow_ - tprev_;
@@ -39,8 +54,9 @@ void Autopilot::update() {
         throw std::runtime_error("Unknown controller type: " + controller_type_);
       }
       
-    } 
-    rclcpp::spin_some(this->get_node_base_interface());
+    }
+
+    loop_rate.sleep();
   }
 }
 

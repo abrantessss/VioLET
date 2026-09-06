@@ -17,7 +17,7 @@ class CombinedVehicleMissionNode(Node):
         self.declare_parameter('fixed_wing_ns', 'drone2')
         self.declare_parameter('arm_seconds', 2.0)
         self.declare_parameter('prime_seconds', 3.0)
-        self.declare_parameter('mission_seconds', 90.0)
+        self.declare_parameter('mission_seconds', 240.0)
         self.shuttle_ns = self.get_parameter('shuttle_ns').value.strip('/')
         self.fixed_wing_ns = self.get_parameter('fixed_wing_ns').value.strip('/')
         self.arm_seconds = float(self.get_parameter('arm_seconds').value)

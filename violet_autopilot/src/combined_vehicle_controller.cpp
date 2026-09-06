@@ -91,14 +91,36 @@ namespace autopilot {
       return stream.str();
     }
 
-    bool contains_negative_thrust(const Eigen::Matrix<double, 5, 1>& thrust) {
-      for (Eigen::Index i = 0; i < thrust.size(); ++i) {
-        if (thrust(i) < 0.0) {
-          return true;
-        }
-      }
-      return false;
+    Eigen::Vector3d lemniscate_derivative(const double a, const double gamma) {
+      const double sine = std::sin(gamma);
+      const double denominator = 1.0 + sine * sine;
+      Eigen::Vector3d derivative;
+      derivative <<
+        a * sine * (sine * sine - 3.0) / (denominator * denominator),
+        a * (1.0 - 3.0 * sine * sine) / (denominator * denominator),
+        0.0;
+      return derivative;
     }
+
+    double signed_horizontal_curvature(
+      const Eigen::Vector3d& dpd_dgamma,
+      const Eigen::Vector3d& d2pd_dgamma2) {
+      const double horizontal_derivative_squared =
+        dpd_dgamma.x() * dpd_dgamma.x() +
+        dpd_dgamma.y() * dpd_dgamma.y();
+      if (horizontal_derivative_squared <= 1e-12 ||
+          !std::isfinite(horizontal_derivative_squared)) {
+        return 0.0;
+      }
+
+      const double denominator =
+        horizontal_derivative_squared * std::sqrt(horizontal_derivative_squared);
+      const double curvature =
+        (dpd_dgamma.x() * d2pd_dgamma2.y() -
+         dpd_dgamma.y() * d2pd_dgamma2.x()) / denominator;
+      return std::isfinite(curvature) ? curvature : 0.0;
+    }
+
   }
 
 
@@ -217,8 +239,8 @@ namespace autopilot {
       "controllers.combinedvehiclecontroller.publishers.velocity_tracking",
       "controller/out/velocity_tracking");
     node_->declare_parameter<std::string>(
-      "controllers.combinedvehiclecontroller.publishers.vertical_velocity_tracking",
-      "controller/out/vertical_velocity_tracking");
+      "controllers.combinedvehiclecontroller.publishers.altitude_tracking",
+      "controller/out/altitude_tracking");
     node_->declare_parameter<std::string>(
       "controllers.combinedvehiclecontroller.subscribers.heading_setpoint",
       "controller/in/heading_setpoint");
@@ -234,22 +256,17 @@ namespace autopilot {
     node_->declare_parameter<double>("controllers.combinedvehiclecontroller.gains.x.ki", 0.0);
     node_->declare_parameter<double>("controllers.combinedvehiclecontroller.gains.z.kp", 1.0);
     node_->declare_parameter<double>("controllers.combinedvehiclecontroller.gains.z.ki", 0.0);
+    node_->declare_parameter<double>("controllers.combinedvehiclecontroller.gains.z.kd", 0.0);
     node_->declare_parameter<double>(
       "controllers.combinedvehiclecontroller.integral_limits.x", 20.0);
     node_->declare_parameter<double>(
       "controllers.combinedvehiclecontroller.integral_limits.z", 20.0);
     node_->declare_parameter<double>("controllers.combinedvehiclecontroller.path_gains.k1", 1.0);
     node_->declare_parameter<double>("controllers.combinedvehiclecontroller.path_gains.k2", 1.0);
-    node_->declare_parameter<double>(
-      "controllers.combinedvehiclecontroller.path_gains.heading_slew_rate", 1.0);
-    node_->declare_parameter<double>(
-      "controllers.combinedvehiclecontroller.path_gains.guidance_update_rate", 10.0);
-    node_->declare_parameter<double>(
-      "controllers.combinedvehiclecontroller.filters.vertical_velocity_tau", 0.2);
     node_->declare_parameter<std::vector<double>>(
-      "controllers.combinedvehiclecontroller.force_limits.tx", {0.0, 100.0});
+      "controllers.combinedvehiclecontroller.force_limits.tx", {0.0, 500.0});
     node_->declare_parameter<std::vector<double>>(
-      "controllers.combinedvehiclecontroller.force_limits.tz", {0.0, 120.0});
+      "controllers.combinedvehiclecontroller.force_limits.tz", {0.0, 500.0});
 
     const std::string wrench_topic =
       node_->get_parameter("controllers.combinedvehiclecontroller.subscribers.wrench").as_string();
@@ -265,8 +282,8 @@ namespace autopilot {
       "controllers.combinedvehiclecontroller.publishers.attitude_reference").as_string();
     const std::string velocity_tracking_topic = node_->get_parameter(
       "controllers.combinedvehiclecontroller.publishers.velocity_tracking").as_string();
-    const std::string vertical_velocity_tracking_topic = node_->get_parameter(
-      "controllers.combinedvehiclecontroller.publishers.vertical_velocity_tracking").as_string();
+    const std::string altitude_tracking_topic = node_->get_parameter(
+      "controllers.combinedvehiclecontroller.publishers.altitude_tracking").as_string();
     const std::string heading_setpoint_topic =
       node_->get_parameter(
         "controllers.combinedvehiclecontroller.subscribers.heading_setpoint").as_string();
@@ -291,6 +308,7 @@ namespace autopilot {
     kix_ = node_->get_parameter("controllers.combinedvehiclecontroller.gains.x.ki").as_double();
     kpz_ = node_->get_parameter("controllers.combinedvehiclecontroller.gains.z.kp").as_double();
     kiz_ = node_->get_parameter("controllers.combinedvehiclecontroller.gains.z.ki").as_double();
+    kdz_ = node_->get_parameter("controllers.combinedvehiclecontroller.gains.z.kd").as_double();
     x_integral_limit_ = std::abs(node_->get_parameter(
       "controllers.combinedvehiclecontroller.integral_limits.x").as_double());
     z_integral_limit_ = std::abs(node_->get_parameter(
@@ -299,16 +317,10 @@ namespace autopilot {
       "controllers.combinedvehiclecontroller.path_gains.k1").as_double();
     path_k2_ = node_->get_parameter(
       "controllers.combinedvehiclecontroller.path_gains.k2").as_double();
-    heading_slew_rate_ = std::abs(node_->get_parameter(
-      "controllers.combinedvehiclecontroller.path_gains.heading_slew_rate").as_double());
-    path_guidance_update_rate_hz_ = std::max(0.0, node_->get_parameter(
-      "controllers.combinedvehiclecontroller.path_gains.guidance_update_rate").as_double());
-    vertical_velocity_filter_tau_ = std::max(0.0, node_->get_parameter(
-      "controllers.combinedvehiclecontroller.filters.vertical_velocity_tau").as_double());
     const auto tx_limits = limit_parameter_or_default(
       node_->get_parameter(
         "controllers.combinedvehiclecontroller.force_limits.tx").as_double_array(),
-      {0.0, 100.0},
+      {0.0, 500.0},
       node_->get_logger(),
       "controllers.combinedvehiclecontroller.force_limits.tx");
     tx_min_ = tx_limits.min;
@@ -316,7 +328,7 @@ namespace autopilot {
     const auto tz_limits = limit_parameter_or_default(
       node_->get_parameter(
         "controllers.combinedvehiclecontroller.force_limits.tz").as_double_array(),
-      {0.0, 120.0},
+      {0.0, 500.0},
       node_->get_logger(),
       "controllers.combinedvehiclecontroller.force_limits.tz");
     tz_min_ = tz_limits.min;
@@ -511,9 +523,9 @@ namespace autopilot {
     velocity_tracking_pub_ = node_->create_publisher<geometry_msgs::msg::Vector3Stamped>(
       velocity_tracking_topic,
       rclcpp::SensorDataQoS());
-    vertical_velocity_tracking_pub_ =
+    altitude_tracking_pub_ =
       node_->create_publisher<geometry_msgs::msg::Vector3Stamped>(
-        vertical_velocity_tracking_topic,
+        altitude_tracking_topic,
         rclcpp::SensorDataQoS());
 
     shuttle_motors_pub_ = node_->create_publisher<px4_msgs::msg::ActuatorMotors>(
@@ -604,22 +616,8 @@ namespace autopilot {
     have_angular_velocity_ = true;
 
     if (path_guidance_active_) {
-      if (dt > 0.0 && std::isfinite(dt)) {
-        path_guidance_elapsed_ += dt;
-      }
-      const double guidance_period = path_guidance_update_rate_hz_ > 0.0 ?
-        1.0 / path_guidance_update_rate_hz_ : 0.0;
-      const bool guidance_due =
-        !have_heading_setpoint_ || guidance_period <= 0.0 ||
-        path_guidance_elapsed_ >= guidance_period;
-      if (guidance_due) {
-        const double guidance_dt = path_guidance_elapsed_ > 0.0 ?
-          path_guidance_elapsed_ : dt;
-        update_path_guidance(guidance_dt, p);
-        path_guidance_elapsed_ = 0.0;
-      }
+      update_path_guidance(dt, p);
     }
-
     if (!have_heading_setpoint_ || !have_airspeed_setpoint_) {
       RCLCPP_WARN_THROTTLE(
         node_->get_logger(),
@@ -631,19 +629,17 @@ namespace autopilot {
       return;
     }
 
-    const double yaw_target_raw = std::atan2(heading_sp_.y(), heading_sp_.x());
-    if (!yaw_target_initialized_) {
-      previous_yaw_target_raw_ = yaw_target_raw;
-      yaw_target_unwrapped_ = yaw_target_raw;
-      yaw_target_initialized_ = true;
-    } else {
-      const double yaw_target_delta = std::atan2(
-        std::sin(yaw_target_raw - previous_yaw_target_raw_),
-        std::cos(yaw_target_raw - previous_yaw_target_raw_));
-      yaw_target_unwrapped_ += yaw_target_delta;
-      previous_yaw_target_raw_ = yaw_target_raw;
-    }
-    attitude_sp_ << 0.0, 0.0, yaw_target_unwrapped_;
+    constexpr double tx_floor = 0.5;
+    const double lateral_force_feedforward =
+      mass_ * airspeed_sp_ * airspeed_sp_ * local_curvature_;
+    const double yaw_offset = std::asin(std::clamp(
+      lateral_force_feedforward / std::max(std::abs(tx_previous_), tx_floor),
+      -1.0,
+      1.0));
+    attitude_sp_ <<
+      0.0,
+      0.0,
+      std::atan2(heading_sp_.y(), heading_sp_.x()) + yaw_offset;
     have_attitude_setpoint_ = true;
 
     geometry_msgs::msg::Vector3Stamped attitude_reference_msg;
@@ -654,39 +650,25 @@ namespace autopilot {
     attitude_reference_msg.vector.z = attitude_sp_.z();
     attitude_reference_pub_->publish(attitude_reference_msg);
 
-    // Horizontal inertial velocity projected onto the measured body x axis.
-    // The vehicle is commanded to zero roll and pitch, so only measured yaw
-    // is needed for this planar projection: p_dot_xb = R_bi(0,:) * p_dot.
+    // The speed PI loop uses the norm of the measured inertial velocity.
     const double yaw = attitude_measured_.z();
-    const double u_measured =
-      v.x() * std::cos(yaw) + v.y() * std::sin(yaw);
+    const double u_measured = v.norm();
     const double lateral_velocity =
       -v.x() * std::sin(yaw) + v.y() * std::cos(yaw);
-    const double horizontal_heading_norm = std::hypot(heading_sp_.x(), heading_sp_.y());
-    const double u_cmd = airspeed_sp_ * horizontal_heading_norm;
-    // State velocity is NED, so positive z is downward. A negative h_z must
-    // therefore produce a negative z-velocity command (climb).
-    const double zdot_cmd = airspeed_sp_ * heading_sp_.z();
-    if (!vertical_velocity_filter_initialized_) {
-      zdot_measured_filtered_ = v.z();
-      vertical_velocity_filter_initialized_ = true;
-    } else if (dt > 0.0 && std::isfinite(dt)) {
-      const double alpha = vertical_velocity_filter_tau_ > 0.0 ?
-        dt / (vertical_velocity_filter_tau_ + dt) : 1.0;
-      zdot_measured_filtered_ += alpha * (v.z() - zdot_measured_filtered_);
-    }
+    // Forward-speed control is independent of the vertical path correction.
+    const double u_cmd = airspeed_sp_;
     const double e_u = u_cmd - u_measured;
-    const double e_zdot = zdot_cmd - zdot_measured_filtered_;
+    // NED z is positive down, so e_z is positive below the desired altitude.
+    const double e_z = p.z() - position_sp_.z();
 
     RCLCPP_INFO_THROTTLE(
       node_->get_logger(),
       *node_->get_clock(),
       500,
-      "Heading guidance raw=[%.3f %.3f %.3f] filtered=[%.3f %.3f %.3f] "
-      "Va=%.3f u_cmd=%.3f zdot_cmd=%.3f",
+      "Heading guidance=[%.3f %.3f %.3f] Va=%.3f u_cmd=%.3f z_sp=%.3f "
+      "curvature=%.4f yaw_offset=%.3f",
       heading_sp_raw_.x(), heading_sp_raw_.y(), heading_sp_raw_.z(),
-      heading_sp_filtered_.x(), heading_sp_filtered_.y(), heading_sp_filtered_.z(),
-      airspeed_sp_, u_cmd, zdot_cmd);
+      airspeed_sp_, u_cmd, position_sp_.z(), local_curvature_, yaw_offset);
 
     u_cmd_debug_ = u_cmd;
     u_measured_debug_ = u_measured;
@@ -701,14 +683,13 @@ namespace autopilot {
     velocity_tracking_msg.vector.z = lateral_velocity;
     velocity_tracking_pub_->publish(velocity_tracking_msg);
 
-    geometry_msgs::msg::Vector3Stamped vertical_velocity_tracking_msg;
-    vertical_velocity_tracking_msg.header.stamp = node_->get_clock()->now();
-    vertical_velocity_tracking_msg.header.frame_id = "ned";
-    // Plot vertical tracking as positive-up even though State velocity is NED.
-    vertical_velocity_tracking_msg.vector.x = -zdot_cmd;
-    vertical_velocity_tracking_msg.vector.y = -zdot_measured_filtered_;
-    vertical_velocity_tracking_msg.vector.z = e_zdot;
-    vertical_velocity_tracking_pub_->publish(vertical_velocity_tracking_msg);
+    geometry_msgs::msg::Vector3Stamped altitude_tracking_msg;
+    altitude_tracking_msg.header.stamp = node_->get_clock()->now();
+    altitude_tracking_msg.header.frame_id = "ned";
+    altitude_tracking_msg.vector.x = position_sp_.z();
+    altitude_tracking_msg.vector.y = p.z();
+    altitude_tracking_msg.vector.z = e_z;
+    altitude_tracking_pub_->publish(altitude_tracking_msg);
 
     double x_integral_candidate = x_error_integral_;
     double z_integral_candidate = z_error_integral_;
@@ -716,7 +697,7 @@ namespace autopilot {
       x_integral_candidate = std::clamp(
         x_error_integral_ + e_u * dt, -x_integral_limit_, x_integral_limit_);
       z_integral_candidate = std::clamp(
-        z_error_integral_ + e_zdot * dt, -z_integral_limit_, z_integral_limit_);
+        z_error_integral_ + e_z * dt, -z_integral_limit_, z_integral_limit_);
     }
 
     const double tx_candidate =
@@ -729,21 +710,24 @@ namespace autopilot {
     }
 
     const double tz_candidate = mass_ *
-      (gravity_ - kpz_ * e_zdot - kiz_ * z_integral_candidate);
+      (gravity_ + kpz_ * e_z + kiz_ * z_integral_candidate + kdz_ * v.z());
     const bool tz_inside = tz_candidate >= tz_min_ && tz_candidate <= tz_max_;
-    // Tz decreases as e_zdot and its integral increase.
-    const bool tz_high_and_reducing = tz_candidate > tz_max_ && e_zdot > 0.0;
-    const bool tz_low_and_reducing = tz_candidate < tz_min_ && e_zdot < 0.0;
+    const bool tz_high_and_reducing = tz_candidate > tz_max_ && e_z < 0.0;
+    const bool tz_low_and_reducing = tz_candidate < tz_min_ && e_z > 0.0;
     if (tz_inside || tz_high_and_reducing || tz_low_and_reducing) {
       z_error_integral_ = z_integral_candidate;
     }
 
     const double tx_unsaturated =
       mass_ * (kpx_ * e_u + kix_ * x_error_integral_);
+    // Tz is an upward thrust magnitude. In NED, positive e_z means the
+    // vehicle is below its target and positive v.z() means it is descending;
+    // both conditions require more upward thrust than hover.
     const double tz_unsaturated = mass_ *
-      (gravity_ - kpz_ * e_zdot - kiz_ * z_error_integral_);
+      (gravity_ + kpz_ * e_z + kiz_ * z_error_integral_ + kdz_ * v.z());
     const double tx = std::clamp(tx_unsaturated, tx_min_, tx_max_);
     const double tz = std::clamp(tz_unsaturated, tz_min_, tz_max_);
+    tx_previous_ = tx;
 
     // tz is a positive upward thrust magnitude; the allocator uses NED body Fz.
     force_sp_ << tx, 0.0, -tz;
@@ -803,8 +787,8 @@ namespace autopilot {
   void CombinedVehicleController::set_path(const int type, const double* path) {
     path_.type = type;
     gamma_ = 0.0;
-    path_guidance_elapsed_ = 0.0;
-    heading_sp_filtered_initialized_ = false;
+    local_curvature_ = 0.0;
+    tx_previous_ = 0.0;
 
     if (type == 0) {
       path_.waypoint << path[0], path[1], path[2];
@@ -833,8 +817,10 @@ namespace autopilot {
   void CombinedVehicleController::update_path_guidance(
     const double dt,
     const Eigen::Vector3d& p) {
+    local_curvature_ = 0.0;
     Eigen::Vector3d pd = Eigen::Vector3d::Zero();
     Eigen::Vector3d dpd_dgamma = Eigen::Vector3d::Zero();
+    Eigen::Vector3d d2pd_dgamma2 = Eigen::Vector3d::Zero();
     double va = 0.0;
 
     if (path_.type == 1) {
@@ -851,6 +837,9 @@ namespace autopilot {
       dpd_dgamma << -radius * std::sin(gamma_),
                      radius * std::cos(gamma_),
                      0.0;
+      d2pd_dgamma2 << -radius * std::cos(gamma_),
+                      -radius * std::sin(gamma_),
+                       0.0;
     } else {
       va = path_.lemniscate_v;
       const double a = path_.lemniscate_a;
@@ -861,10 +850,12 @@ namespace autopilot {
       pd << center.x() + a * cosine / denominator,
             center.y() + a * sine * cosine / denominator,
             center.z();
-      dpd_dgamma <<
-        a * sine * (sine * sine - 3.0) / (denominator * denominator),
-        a * (1.0 - 3.0 * sine * sine) / (denominator * denominator),
-        0.0;
+      dpd_dgamma = lemniscate_derivative(a, gamma_);
+      constexpr double derivative_step = 1e-4;
+      d2pd_dgamma2 =
+        (lemniscate_derivative(a, gamma_ + derivative_step) -
+         lemniscate_derivative(a, gamma_ - derivative_step)) /
+        (2.0 * derivative_step);
     }
 
     const double path_derivative_norm = dpd_dgamma.norm();
@@ -888,24 +879,10 @@ namespace autopilot {
     }
 
     heading_sp_raw_ = auxiliary / auxiliary_norm;
-    if (!heading_sp_filtered_initialized_) {
-      heading_sp_filtered_ = heading_sp_raw_;
-      heading_sp_filtered_initialized_ = true;
-    } else if (dt > 0.0 && std::isfinite(dt)) {
-      Eigen::Vector3d delta = heading_sp_raw_ - heading_sp_filtered_;
-      const double maximum_step = heading_slew_rate_ * dt;
-      const double delta_norm = delta.norm();
-      if (delta_norm > maximum_step && delta_norm > 1e-9) {
-        delta *= maximum_step / delta_norm;
-      }
-      heading_sp_filtered_ += delta;
-      const double filtered_norm = heading_sp_filtered_.norm();
-      if (filtered_norm > 1e-6 && std::isfinite(filtered_norm)) {
-        heading_sp_filtered_ /= filtered_norm;
-      }
-    }
-    heading_sp_ = heading_sp_filtered_;
+    heading_sp_ = heading_sp_raw_;
+    position_sp_ = pd;
     airspeed_sp_ = va;
+    local_curvature_ = signed_horizontal_curvature(dpd_dgamma, d2pd_dgamma2);
     have_heading_setpoint_ = true;
     have_airspeed_setpoint_ = true;
 
@@ -941,24 +918,16 @@ namespace autopilot {
     have_force_setpoint_ = false;
     heading_sp_raw_ = Eigen::Vector3d::UnitX();
     heading_sp_ = Eigen::Vector3d::UnitX();
-    heading_sp_filtered_ = Eigen::Vector3d::UnitX();
-    heading_sp_filtered_initialized_ = false;
-    zdot_measured_filtered_ = 0.0;
-    vertical_velocity_filter_initialized_ = false;
+    position_sp_.setZero();
+    local_curvature_ = 0.0;
+    tx_previous_ = 0.0;
     x_error_integral_ = 0.0;
     z_error_integral_ = 0.0;
     have_heading_setpoint_ = false;
     airspeed_sp_ = 0.0;
     have_airspeed_setpoint_ = false;
     gamma_ = 0.0;
-    path_guidance_elapsed_ = 0.0;
     path_guidance_active_ = false;
-    previous_yaw_target_raw_ = 0.0;
-    yaw_target_unwrapped_ = 0.0;
-    yaw_target_initialized_ = false;
-    previous_yaw_measured_raw_ = 0.0;
-    yaw_measured_unwrapped_ = 0.0;
-    yaw_measured_initialized_ = false;
     have_wrench_ = false;
   }
 
@@ -987,21 +956,8 @@ namespace autopilot {
 
   void CombinedVehicleController::on_state_callback(
     const violet_msgs::msg::State::ConstSharedPtr msg) {
-    const double yaw_measured_raw = msg->attitude[2];
-    if (!yaw_measured_initialized_) {
-      previous_yaw_measured_raw_ = yaw_measured_raw;
-      yaw_measured_unwrapped_ = yaw_measured_raw;
-      yaw_measured_initialized_ = true;
-    } else {
-      const double yaw_measured_delta = std::atan2(
-        std::sin(yaw_measured_raw - previous_yaw_measured_raw_),
-        std::cos(yaw_measured_raw - previous_yaw_measured_raw_));
-      yaw_measured_unwrapped_ += yaw_measured_delta;
-      previous_yaw_measured_raw_ = yaw_measured_raw;
-    }
-
     attitude_measured_ <<
-      msg->attitude[0], msg->attitude[1], yaw_measured_unwrapped_;
+      msg->attitude[0], msg->attitude[1], msg->attitude[2];
     have_attitude_ = true;
   }
 
@@ -1020,7 +976,7 @@ namespace autopilot {
 
     heading_sp_raw_ = heading / norm;
     heading_sp_ = heading_sp_raw_;
-    heading_sp_filtered_ = heading_sp_raw_;
+    local_curvature_ = 0.0;
     have_heading_setpoint_ = true;
     path_guidance_active_ = false;
   }
@@ -1038,6 +994,7 @@ namespace autopilot {
 
     airspeed_sp_ = msg->data;
     have_airspeed_setpoint_ = true;
+    local_curvature_ = 0.0;
     path_guidance_active_ = false;
   }
 
@@ -1167,11 +1124,21 @@ namespace autopilot {
     const Eigen::Matrix<double, 5, 1> thrust_before_saturation = thrust_trim_ + delta_thrust;
     Eigen::Matrix<double, 5, 1> thrust_after_saturation;
     bool clipped = false;
-    bool negative_thrust_requested = contains_negative_thrust(thrust_before_saturation);
+    bool negative_thrust_requested = false;
+    bool non_finite_thrust_requested = false;
     for (int i = 0; i < 5; ++i) {
       const double thrust_max =
         motor_constants_(i) * max_rot_velocities_(i) * max_rot_velocities_(i);
-      thrust_after_saturation(i) = std::clamp(thrust_before_saturation(i), 0.0, thrust_max);
+      const double requested_thrust = thrust_before_saturation(i);
+      negative_thrust_requested = negative_thrust_requested || requested_thrust < 0.0;
+      non_finite_thrust_requested =
+        non_finite_thrust_requested || !std::isfinite(requested_thrust);
+
+      // These motors are non-reversible. Never forward negative or invalid
+      // allocation results to PX4: explicitly request zero from that motor.
+      thrust_after_saturation(i) =
+        std::isfinite(requested_thrust) && requested_thrust > 0.0 ?
+        std::min(requested_thrust, thrust_max) : 0.0;
       clipped = clipped || thrust_after_saturation(i) != thrust_before_saturation(i);
     }
     const Eigen::Matrix<double, 5, 1> omega_cmd = thrust_to_motor_speed(thrust_after_saturation);
@@ -1226,7 +1193,11 @@ namespace autopilot {
     allocation_log << "CombinedVehicleController physical allocation" << (clipped ? " clipped" : "") << "\n";
     if (negative_thrust_requested) {
       allocation_log
-        << "  note: allocation requested negative thrust; non-reversible motors clamp it to 0 N\n";
+        << "  note: negative motor thrust request replaced with a 0 command\n";
+    }
+    if (non_finite_thrust_requested) {
+      allocation_log
+        << "  note: non-finite motor thrust request replaced with a 0 command\n";
     }
     allocation_log
       << "  wrench axes       [Mx My Mz Fx Fz]\n"

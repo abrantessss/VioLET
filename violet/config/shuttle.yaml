@@ -23,6 +23,7 @@
         request: "fmu/in/vehicle_command"
     controllers:
       type: "combined_vehicle_controller"
+      update_rate_hz: 500.0
       onboardcontroller:
         publishers:
           setpoint: "fmu/in/trajectory_setpoint"
@@ -188,8 +189,8 @@
         fixed_wing_namespace: "drone2"
         fixed_wing_vehicle_id: 2
         gain_form: "parallel"
-        shuttle_mass: 3.3
-        fixed_wing_mass: 1.3
+        shuttle_mass: 3.5
+        fixed_wing_mass: 1.5
         gravity: 9.80665
         # Path and velocity feedback use the shuttle PX4 odometry directly.
         gains:
@@ -206,21 +207,18 @@
             ki: 0.25
             kd: 0.0
           x:
-            kp: 5.0
-            ki: 1.0
+            kp: 1.0
+            ki: 0.5
           z:
-            kp: 8.0
-            ki: 1.5
+            kp: 3.5
+            ki: 0.3
+            kd: 4.5
         path_gains:
-          k1: 2.0
-          k2: 1.0
-          heading_slew_rate: 1.0  # maximum heading-vector change rate [1/s]
-          guidance_update_rate: 10.0  # LOS heading update rate [Hz]
-        filters:
-          vertical_velocity_tau: 0.1  # first-order low-pass time constant [s]
+          k1: 1.0
+          k2: 3.0
         force_limits:
-          tx: [0.0, 100.0]  # fixed-wing propeller thrust [N]
-          tz: [0.0, 45.0]  # total quadrotor lift magnitude [N]
+          tx: [0.0, 25.0]  # fixed-wing propeller thrust [N]
+          tz: [0.0, 120.0]  # total quadrotor lift magnitude [N]
         integral_limits:
           roll: [-5.0, 5.0]
           pitch: [-5.0, 5.0]
@@ -256,7 +254,7 @@
           achieved_wrench: "controller/out/achieved_wrench"
           attitude_reference: "controller/out/attitude_reference"
           velocity_tracking: "controller/out/velocity_tracking"
-          vertical_velocity_tracking: "controller/out/vertical_velocity_tracking"
+          altitude_tracking: "controller/out/altitude_tracking"
         attitude_gains:
           roll: 1.3
           pitch: 1.3

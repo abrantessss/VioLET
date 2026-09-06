@@ -22,7 +22,7 @@ def generate_launch_description():
         DeclareLaunchArgument('force_reference_topic', default_value=''),
         DeclareLaunchArgument('force_achieved_topic', default_value=''),
         DeclareLaunchArgument('velocity_tracking_topic', default_value=''),
-        DeclareLaunchArgument('vertical_velocity_tracking_topic', default_value=''),
+        DeclareLaunchArgument('altitude_tracking_topic', default_value=''),
         DeclareLaunchArgument('output_prefix', default_value='rviz_plots'),
         DeclareLaunchArgument('history_length', default_value='2000'),
         DeclareLaunchArgument('tracking_publish_rate_hz', default_value='20.0'),
@@ -41,8 +41,7 @@ def generate_launch_description():
             'force_reference_topic': LaunchConfiguration('force_reference_topic'),
             'force_achieved_topic': LaunchConfiguration('force_achieved_topic'),
             'velocity_tracking_topic': LaunchConfiguration('velocity_tracking_topic'),
-            'vertical_velocity_tracking_topic': LaunchConfiguration(
-                'vertical_velocity_tracking_topic'),
+            'altitude_tracking_topic': LaunchConfiguration('altitude_tracking_topic'),
             'output_prefix': LaunchConfiguration('output_prefix'),
             'history_length': LaunchConfiguration('history_length'),
             'tracking_publish_rate_hz': LaunchConfiguration('tracking_publish_rate_hz'),

@@ -360,7 +360,7 @@ Visualization Manager:
           Value: true
           Topic: /drone1/rviz_plots/yaw/reference
           Field: data
-          Label: Yaw Reference
+          Label: Yaw Command
           Unit: rad
           Color: 255; 170; 60
           Line Width: 2
@@ -528,15 +528,15 @@ Visualization Manager:
         Depth: 10
     - Class: rviz_2d_plot_plugin/Plot2D
       Enabled: true
-      Name: Controller Velocity Tracking
+      Name: Speed and Altitude Tracking
       Plot Mode: Time Series
       Series:
-        Series Count: 4
+        Series Count: 5
         Series 1:
           Value: true
-          Topic: /drone1/rviz_plots/velocity/u_reference
+          Topic: /drone1/rviz_plots/velocity/u_command
           Field: data
-          Label: U Reference
+          Label: Forward Speed Command
           Unit: m/s
           Color: 255; 170; 60
           Line Width: 2
@@ -549,7 +549,7 @@ Visualization Manager:
           Value: true
           Topic: /drone1/rviz_plots/velocity/u_measured
           Field: data
-          Label: U Measured
+          Label: Speed Norm Measured
           Unit: m/s
           Color: 80; 170; 255
           Line Width: 2
@@ -560,10 +560,10 @@ Visualization Manager:
           Value Offset: 0
         Series 3:
           Value: true
-          Topic: /drone1/rviz_plots/velocity/up_reference
+          Topic: /drone1/rviz_plots/altitude/z_reference
           Field: data
-          Label: Up Velocity Reference
-          Unit: m/s
+          Label: NED Z Reference
+          Unit: m
           Color: 255; 120; 180
           Line Width: 2
           Line Alpha: 1
@@ -573,14 +573,27 @@ Visualization Manager:
           Value Offset: 0
         Series 4:
           Value: true
-          Topic: /drone1/rviz_plots/velocity/up_measured
+          Topic: /drone1/rviz_plots/altitude/z_measured
           Field: data
-          Label: Up Velocity Measured
-          Unit: m/s
+          Label: NED Z Measured
+          Unit: m
           Color: 80; 220; 130
           Line Width: 2
           Line Alpha: 1
           Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 5:
+          Value: true
+          Topic: /drone1/rviz_plots/altitude/z_error
+          Field: data
+          Label: NED Z Error
+          Unit: m
+          Color: 200; 120; 255
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Dot
           Plot Style: Line
           Value Scale: 1
           Value Offset: 0

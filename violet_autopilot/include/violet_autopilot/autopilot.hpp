@@ -184,6 +184,7 @@ class Autopilot : public rclcpp::Node {
     Trajectories trajectory_;
     std::string controller_type_;
     int vehicle_id_{1};
+    double control_update_rate_hz_{100.0};
     autopilot::Controller::UniquePtr controller_{nullptr};
     double tnow_;
     double tprev_;

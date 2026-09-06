@@ -45,7 +45,7 @@ class PlotBridge(Node):
         self.declare_parameter('force_reference_topic', '')
         self.declare_parameter('force_achieved_topic', '')
         self.declare_parameter('velocity_tracking_topic', '')
-        self.declare_parameter('vertical_velocity_tracking_topic', '')
+        self.declare_parameter('altitude_tracking_topic', '')
         self.declare_parameter('tracking_publish_rate_hz', 20.0)
 
         vehicle_ns = self.get_parameter('vehicle_ns').value.strip('/')
@@ -57,8 +57,7 @@ class PlotBridge(Node):
         force_reference_topic = self.get_parameter('force_reference_topic').value
         force_achieved_topic = self.get_parameter('force_achieved_topic').value
         velocity_tracking_topic = self.get_parameter('velocity_tracking_topic').value
-        vertical_velocity_tracking_topic = self.get_parameter(
-            'vertical_velocity_tracking_topic').value
+        altitude_tracking_topic = self.get_parameter('altitude_tracking_topic').value
         if not attitude_reference_topic:
             attitude_reference_topic = f'/{vehicle_ns}/controller/out/attitude_reference'
         if not force_reference_topic:
@@ -67,9 +66,8 @@ class PlotBridge(Node):
             force_achieved_topic = f'/{vehicle_ns}/controller/out/achieved_wrench'
         if not velocity_tracking_topic:
             velocity_tracking_topic = f'/{vehicle_ns}/controller/out/velocity_tracking'
-        if not vertical_velocity_tracking_topic:
-            vertical_velocity_tracking_topic = (
-                f'/{vehicle_ns}/controller/out/vertical_velocity_tracking')
+        if not altitude_tracking_topic:
+            altitude_tracking_topic = f'/{vehicle_ns}/controller/out/altitude_tracking'
 
         self.base_topic = f'/{vehicle_ns}/{output_prefix}'
         self.history_length = int(self.get_parameter('history_length').value)
@@ -89,15 +87,13 @@ class PlotBridge(Node):
             'velocity/vx': math.nan,
             'velocity/vy': math.nan,
             'velocity/vz': math.nan,
-            'velocity/u_reference': math.nan,
+            'velocity/u_command': math.nan,
             'velocity/u_measured': math.nan,
             'velocity/lateral': math.nan,
-            'velocity/up_reference': math.nan,
-            'velocity/up_measured': math.nan,
+            'altitude/z_reference': math.nan,
+            'altitude/z_measured': math.nan,
+            'altitude/z_error': math.nan,
         }
-        self.previous_measured_yaw_raw = None
-        self.measured_yaw_unwrapped = 0.0
-
         self.scalar_publishers = {
             'errors/norm': self.create_publisher(Float32, f'{self.base_topic}/errors/norm', 10),
             'errors/x_abs': self.create_publisher(Float32, f'{self.base_topic}/errors/x_abs', 10),
@@ -132,16 +128,18 @@ class PlotBridge(Node):
                 Float32, f'{self.base_topic}/velocity/vy', 10),
             'velocity/vz': self.create_publisher(
                 Float32, f'{self.base_topic}/velocity/vz', 10),
-            'velocity/u_reference': self.create_publisher(
-                Float32, f'{self.base_topic}/velocity/u_reference', 10),
+            'velocity/u_command': self.create_publisher(
+                Float32, f'{self.base_topic}/velocity/u_command', 10),
             'velocity/u_measured': self.create_publisher(
                 Float32, f'{self.base_topic}/velocity/u_measured', 10),
             'velocity/lateral': self.create_publisher(
                 Float32, f'{self.base_topic}/velocity/lateral', 10),
-            'velocity/up_reference': self.create_publisher(
-                Float32, f'{self.base_topic}/velocity/up_reference', 10),
-            'velocity/up_measured': self.create_publisher(
-                Float32, f'{self.base_topic}/velocity/up_measured', 10),
+            'altitude/z_reference': self.create_publisher(
+                Float32, f'{self.base_topic}/altitude/z_reference', 10),
+            'altitude/z_measured': self.create_publisher(
+                Float32, f'{self.base_topic}/altitude/z_measured', 10),
+            'altitude/z_error': self.create_publisher(
+                Float32, f'{self.base_topic}/altitude/z_error', 10),
         }
 
         self.position_pub = self.create_publisher(
@@ -188,8 +186,8 @@ class PlotBridge(Node):
         )
         self.create_subscription(
             Vector3Stamped,
-            vertical_velocity_tracking_topic,
-            self.vertical_velocity_tracking_cb,
+            altitude_tracking_topic,
+            self.altitude_tracking_cb,
             plot_data_qos,
         )
         self.tracking_timer = self.create_timer(
@@ -225,17 +223,9 @@ class PlotBridge(Node):
         self._publish_scalar('velocity/desired_matlab', desired_matlab)
         self._publish_scalar('gamma_dot', float(msg.gamma))
         self._publish_scalar('vd', float(msg.vd))
-        measured_yaw_raw = float(msg.attitude[2])
-        if self.previous_measured_yaw_raw is None:
-            self.measured_yaw_unwrapped = measured_yaw_raw
-        else:
-            measured_yaw_delta = math.atan2(
-                math.sin(measured_yaw_raw - self.previous_measured_yaw_raw),
-                math.cos(measured_yaw_raw - self.previous_measured_yaw_raw),
-            )
-            self.measured_yaw_unwrapped += measured_yaw_delta
-        self.previous_measured_yaw_raw = measured_yaw_raw
-        self.latest_tracking_values['yaw/measured'] = self.measured_yaw_unwrapped
+        measured_yaw = float(msg.attitude[2])
+        self.latest_tracking_values['yaw/measured'] = math.atan2(
+            math.sin(measured_yaw), math.cos(measured_yaw))
         self.latest_tracking_values['velocity/vx'] = velocity[0]
         self.latest_tracking_values['velocity/vy'] = velocity[1]
         self.latest_tracking_values['velocity/vz'] = velocity[2]
@@ -254,7 +244,9 @@ class PlotBridge(Node):
                 self._path_msg(stamp, frame_id, self.desired_path_history))
 
     def attitude_reference_cb(self, msg):
-        self.latest_tracking_values['yaw/reference'] = float(msg.vector.z)
+        yaw_command = float(msg.vector.z)
+        self.latest_tracking_values['yaw/reference'] = math.atan2(
+            math.sin(yaw_command), math.cos(yaw_command))
 
     def force_reference_cb(self, msg):
         self.latest_tracking_values['forces/tx_reference'] = float(msg.wrench.force.x)
@@ -265,13 +257,14 @@ class PlotBridge(Node):
         self.latest_tracking_values['forces/tz_achieved'] = -float(msg.wrench.force.z)
 
     def velocity_tracking_cb(self, msg):
-        self.latest_tracking_values['velocity/u_reference'] = float(msg.vector.x)
+        self.latest_tracking_values['velocity/u_command'] = float(msg.vector.x)
         self.latest_tracking_values['velocity/u_measured'] = float(msg.vector.y)
         self.latest_tracking_values['velocity/lateral'] = float(msg.vector.z)
 
-    def vertical_velocity_tracking_cb(self, msg):
-        self.latest_tracking_values['velocity/up_reference'] = float(msg.vector.x)
-        self.latest_tracking_values['velocity/up_measured'] = float(msg.vector.y)
+    def altitude_tracking_cb(self, msg):
+        self.latest_tracking_values['altitude/z_reference'] = float(msg.vector.x)
+        self.latest_tracking_values['altitude/z_measured'] = float(msg.vector.y)
+        self.latest_tracking_values['altitude/z_error'] = float(msg.vector.z)
 
     def publish_tracking_values(self):
         for key, value in self.latest_tracking_values.items():
