@@ -263,6 +263,11 @@ namespace autopilot {
       "controllers.combinedvehiclecontroller.integral_limits.z", 20.0);
     node_->declare_parameter<double>("controllers.combinedvehiclecontroller.path_gains.k1", 1.0);
     node_->declare_parameter<double>("controllers.combinedvehiclecontroller.path_gains.k2", 1.0);
+    node_->declare_parameter<double>("controllers.combinedvehiclecontroller.gains.ka", 1.0);
+    node_->declare_parameter<double>(
+      "controllers.combinedvehiclecontroller.limits.lateral_acceleration_min", -4.0);
+    node_->declare_parameter<double>(
+      "controllers.combinedvehiclecontroller.limits.lateral_acceleration_max", 4.0);
     node_->declare_parameter<std::vector<double>>(
       "controllers.combinedvehiclecontroller.force_limits.tx", {0.0, 500.0});
     node_->declare_parameter<std::vector<double>>(
@@ -356,6 +361,15 @@ namespace autopilot {
       node_->get_parameter("controllers.combinedvehiclecontroller.fixed_wing_sigma").as_double();
     fixed_wing_moment_constant_ =
       node_->get_parameter("controllers.combinedvehiclecontroller.fixed_wing_moment_constant").as_double();
+
+    ka_ = node_->get_parameter("controllers.combinedvehiclecontroller.gains.ka").as_double();
+    lateral_acceleration_min_ = node_->get_parameter(
+      "controllers.combinedvehiclecontroller.limits.lateral_acceleration_min").as_double();
+    lateral_acceleration_max_ = node_->get_parameter(
+      "controllers.combinedvehiclecontroller.limits.lateral_acceleration_max").as_double();
+    if (lateral_acceleration_min_ > lateral_acceleration_max_) {
+      std::swap(lateral_acceleration_min_, lateral_acceleration_max_);
+    }
 
     attitude_kp_ <<
       node_->get_parameter("controllers.combinedvehiclecontroller.attitude_gains.roll").as_double(),
@@ -629,10 +643,27 @@ namespace autopilot {
       return;
     }
 
+    // LOS4 lateral control: curvature feedforward plus horizontal direction feedback.
+    Eigen::Vector3d h_current(v.x(), v.y(), 0.0);
+    Eigen::Vector3d h_ref(heading_sp_.x(), heading_sp_.y(), 0.0);
+    const double horizontal_speed = h_current.norm();
+    const double horizontal_ref_norm = h_ref.norm();
+    double lateral_direction_error = 0.0;
+    if (std::isfinite(horizontal_speed) && horizontal_speed > 1e-6 &&
+        std::isfinite(horizontal_ref_norm) && horizontal_ref_norm > 1e-6) {
+      h_current /= horizontal_speed;
+      h_ref /= horizontal_ref_norm;
+      lateral_direction_error = h_current.cross(h_ref).z();
+    }
+    const double lateral_acceleration_feedforward =
+      airspeed_sp_ * airspeed_sp_ * local_curvature_;
+    const double lateral_acceleration_cmd = std::clamp(
+      lateral_acceleration_feedforward + ka_ * lateral_direction_error,
+      lateral_acceleration_min_,
+      lateral_acceleration_max_);
+
     attitude_sp_ <<
-      std::atan2(
-        airspeed_sp_ * airspeed_sp_ * local_curvature_,
-        gravity_),
+      std::atan(lateral_acceleration_cmd / gravity_),
       0.0,
       std::atan2(heading_sp_.y(), heading_sp_.x());
     have_attitude_setpoint_ = true;

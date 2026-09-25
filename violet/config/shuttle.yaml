@@ -194,6 +194,7 @@
         gravity: 9.80665
         # Path and velocity feedback use the shuttle PX4 odometry directly.
         gains:
+          ka: 6.0  # LOS4 horizontal direction feedback gain
           roll:
             kp: 5.3
             ki: 0.2
@@ -230,6 +231,8 @@
           motor_max: 1.0
           servo_min: -1.0
           servo_max: 1.0
+          lateral_acceleration_min: -6.0  # m/s^2, matching fixed-wing LOS4
+          lateral_acceleration_max: 6.0
         output_limits:
           roll: [-3.0, 3.0]
           pitch: [-3.0, 3.0]

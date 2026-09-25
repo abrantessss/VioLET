@@ -135,6 +135,9 @@ namespace autopilot {
       double u_measured_debug_{0.0};
       double lateral_velocity_debug_{0.0};
       double local_curvature_{0.0};
+      double ka_{1.0};
+      double lateral_acceleration_min_{-4.0};
+      double lateral_acceleration_max_{4.0};
       Eigen::Vector3d inertial_velocity_debug_{Eigen::Vector3d::Zero()};
       double gamma_{0.0};
       double path_k1_{1.0};
