@@ -629,17 +629,12 @@ namespace autopilot {
       return;
     }
 
-    constexpr double tx_floor = 0.5;
-    const double lateral_force_feedforward =
-      mass_ * airspeed_sp_ * airspeed_sp_ * local_curvature_;
-    const double yaw_offset = std::asin(std::clamp(
-      lateral_force_feedforward / std::max(std::abs(tx_previous_), tx_floor),
-      -1.0,
-      1.0));
     attitude_sp_ <<
+      std::atan2(
+        airspeed_sp_ * airspeed_sp_ * local_curvature_,
+        gravity_),
       0.0,
-      0.0,
-      std::atan2(heading_sp_.y(), heading_sp_.x()) + yaw_offset;
+      std::atan2(heading_sp_.y(), heading_sp_.x());
     have_attitude_setpoint_ = true;
 
     geometry_msgs::msg::Vector3Stamped attitude_reference_msg;
@@ -665,10 +660,9 @@ namespace autopilot {
       node_->get_logger(),
       *node_->get_clock(),
       500,
-      "Heading guidance=[%.3f %.3f %.3f] Va=%.3f u_cmd=%.3f z_sp=%.3f "
-      "curvature=%.4f yaw_offset=%.3f",
+      "Heading guidance=[%.3f %.3f %.3f] Va=%.3f u_cmd=%.3f z_sp=%.3f",
       heading_sp_raw_.x(), heading_sp_raw_.y(), heading_sp_raw_.z(),
-      airspeed_sp_, u_cmd, position_sp_.z(), local_curvature_, yaw_offset);
+      airspeed_sp_, u_cmd, position_sp_.z());
 
     u_cmd_debug_ = u_cmd;
     u_measured_debug_ = u_measured;
@@ -727,7 +721,6 @@ namespace autopilot {
       (gravity_ + kpz_ * e_z + kiz_ * z_error_integral_ + kdz_ * v.z());
     const double tx = std::clamp(tx_unsaturated, tx_min_, tx_max_);
     const double tz = std::clamp(tz_unsaturated, tz_min_, tz_max_);
-    tx_previous_ = tx;
 
     // tz is a positive upward thrust magnitude; the allocator uses NED body Fz.
     force_sp_ << tx, 0.0, -tz;
@@ -788,7 +781,6 @@ namespace autopilot {
     path_.type = type;
     gamma_ = 0.0;
     local_curvature_ = 0.0;
-    tx_previous_ = 0.0;
 
     if (type == 0) {
       path_.waypoint << path[0], path[1], path[2];
@@ -871,7 +863,8 @@ namespace autopilot {
     const Eigen::Matrix3d tangent_projection =
       Eigen::Matrix3d::Identity() - tangent * tangent.transpose();
     const Eigen::Vector3d auxiliary =
-      -path_k1_ * tangent_projection * position_error + path_k2_ * tangent;
+      -path_k1_ * tangent_projection * position_error +
+      path_k2_ * tangent;
     const double auxiliary_norm = auxiliary.norm();
     const double auxiliary_norm_floor = std::max(0.05 * path_k2_, 1e-3);
     if (auxiliary_norm <= auxiliary_norm_floor || !std::isfinite(auxiliary_norm)) {
@@ -920,7 +913,6 @@ namespace autopilot {
     heading_sp_ = Eigen::Vector3d::UnitX();
     position_sp_.setZero();
     local_curvature_ = 0.0;
-    tx_previous_ = 0.0;
     x_error_integral_ = 0.0;
     z_error_integral_ = 0.0;
     have_heading_setpoint_ = false;
