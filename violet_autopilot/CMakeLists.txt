@@ -55,6 +55,21 @@ ament_target_dependencies(${PROJECT_NAME}
   px4_msgs
 )
 
+# Optional backend: the existing DDS build does not require MAVSDK.
+option(BUILD_MAVLINK "Build the quadrotor and fixed-wing MAVSDK backend" OFF)
+if(BUILD_MAVLINK)
+  find_package(MAVSDK 2 REQUIRED)
+  add_executable(${PROJECT_NAME}_mavlink
+    src/main_mavlink.cpp
+    src/autopilot_mavlink.cpp
+    src/mellinger_controller_mavlink.cpp
+    src/los4_controller_mavlink.cpp
+  )
+  ament_target_dependencies(${PROJECT_NAME}_mavlink rclcpp std_msgs violet_msgs)
+  target_link_libraries(${PROJECT_NAME}_mavlink MAVSDK::mavsdk)
+  install(TARGETS ${PROJECT_NAME}_mavlink DESTINATION lib/${PROJECT_NAME})
+endif()
+
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(ament_lint_auto REQUIRED)

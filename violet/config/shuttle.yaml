@@ -22,16 +22,17 @@
         offboard: "fmu/in/offboard_control_mode"
         request: "fmu/in/vehicle_command"
     controllers:
-      type: "combined_vehicle_controller"
+      type: "mellinger"
       update_rate_hz: 500.0
       onboardcontroller:
         publishers:
           setpoint: "fmu/in/trajectory_setpoint"
       mellingercontroller:
+        kphi: 0.0005 # Path progression smoothness factor
         mass: 3.5 # Kg
         gains:
-          kp: [2.5, 2.5, 8.0]
-          kd: [5.2, 5.2, 5.8]
+          kp: [3.5, 3.5, 7.0]
+          kd: [4.2, 4.2, 5.8]
           kr: [5.0, 5.0, 4.2]
         publishers:
           setpoint: "fmu/in/vehicle_rates_setpoint"
@@ -77,16 +78,16 @@
         gain_form: "parallel"
         gains:
           roll:
-            kp: 5.3
-            ki: 0.2
-            kd: 0.001
+            kp: 0.25
+            ki: 0.02
+            kd: 0.0
           pitch:
-            kp: 4.5 
-            ki: 0.2
-            kd: 0.001
+            kp: 0.25
+            ki: 0.02
+            kd: 0.0
           yaw:
-            kp: 2.1
-            ki: 0.25
+            kp: 0.1
+            ki: 0.0
             kd: 0.0
         limits:
           motor_min: -1.0

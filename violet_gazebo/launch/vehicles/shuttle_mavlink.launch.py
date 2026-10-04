@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+import os
+
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
+
+from ament_index_python.packages import get_package_share_directory
+
+def generate_launch_description():
+
+  # Get world model path
+  world = os.path.join(get_package_share_directory('violet_gazebo'), 'worlds', 'helipad.world')
+  pkg_dir = get_package_share_directory('violet')
+  default_yaml = os.path.join(pkg_dir, 'config', 'shuttle_mavlink.yaml')
+
+  return LaunchDescription([
+    DeclareLaunchArgument('connection_url', default_value='udp://:14540'),
+    DeclareLaunchArgument(
+      'config_yaml',
+      default_value=default_yaml,
+      description='Path to config YAML file'
+    ),
+
+    # Launch default vehicle launch file
+    IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('violet_gazebo'), 'launch/vehicles/default_vehicle_mavlink.launch.py')),
+        launch_arguments={ #ENU coordinates
+            'x': '0',
+            'y': '0',
+            'z': '1.8',
+            'R': '0',
+            'P': '0',
+            'Y': '0',
+            'vehicle_id': '1',
+            'vehicle_model': 'shuttle',
+            'vehicle_sdf_model': 'shuttle',
+            'gazebo_dir': get_package_share_directory('violet_gazebo'),
+            'config_yaml': LaunchConfiguration('config_yaml'),
+            'connection_url': LaunchConfiguration('connection_url')
+        }.items()
+    )
+  ])

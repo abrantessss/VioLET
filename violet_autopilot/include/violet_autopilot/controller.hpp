@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include "std_msgs/msg/float64_multi_array.hpp"
 
 #include<Eigen/Dense>
 
@@ -53,6 +54,9 @@ namespace autopilot {
           "fmu/telemetry/autopilot_plot",
           rclcpp::SensorDataQoS());
 
+        results_pub_ = node_->create_publisher<std_msgs::msg::Float64MultiArray>(
+          "fmu/telemetry/controller_results", rclcpp::SensorDataQoS());
+
         initialize();
       }
 
@@ -90,6 +94,48 @@ namespace autopilot {
         plot_pub_->publish(msg);
       }
 
+      // Each dimension labels a consecutive block; matrices are row-major.
+      inline void publish_mellinger_results(
+        double gamma, double gamma_dot, double gamma_ddot, double gamma_dddot,
+        double vd, double kphi, const Eigen::Vector3d & p, const Eigen::Vector3d & v,
+        const Eigen::Vector3d & pd, const Eigen::Vector3d & pdd,
+        const Eigen::Vector3d & pddd, const Eigen::Vector3d & pdddd,
+        const Eigen::Vector3d & dpd_dgamma, const Eigen::Vector3d & ep,
+        const Eigen::Matrix3d & R, const Eigen::Matrix3d & Rd, const Eigen::Vector3d & eR)
+      {
+        std_msgs::msg::Float64MultiArray msg;
+        auto block = [&msg](const std::string & label, const std::vector<double> & values) {
+          std_msgs::msg::MultiArrayDimension dim;
+          dim.label = label;
+          dim.size = values.size();
+          dim.stride = values.size();
+          msg.layout.dim.push_back(dim);
+          msg.data.insert(msg.data.end(), values.begin(), values.end());
+        };
+        auto vector = [&block](const std::string & label, const Eigen::Vector3d & value) {
+          block(label, {value.x(), value.y(), value.z()});
+        };
+        auto matrix = [&block](const std::string & label, const Eigen::Matrix3d & value) {
+          std::vector<double> entries;
+          for (int row = 0; row < 3; ++row)
+            for (int col = 0; col < 3; ++col) entries.push_back(value(row, col));
+          block(label, entries);
+        };
+        block("mellinger", {});
+        block("gamma", {gamma});
+        block("gamma_dot", {gamma_dot});
+        block("gamma_ddot", {gamma_ddot});
+        block("gamma_dddot", {gamma_dddot});
+        block("vd", {vd});
+        block("kphi", {kphi});
+        vector("position", p); vector("velocity", v);
+        vector("pd", pd); vector("pdd", pdd); vector("pddd", pddd);
+        vector("pdddd", pdddd); vector("dpd_dgamma", dpd_dgamma); vector("ep", ep);
+        matrix("R", R); matrix("Rd", Rd); vector("eR", eR);
+        results_pub_->publish(msg);
+      }
+
+      rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr results_pub_;
       rclcpp::Node::SharedPtr node_{nullptr};
       int vehicle_id_{1};
       Path path_;

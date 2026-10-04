@@ -6,6 +6,9 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
+from std_msgs.msg import Float64MultiArray
+from violet_scripts.mission_bag import MissionBag, default_bag_directory
+
 from violet_msgs.msg import AutopilotPlot, Mode, PlotData, State, Trajectory
 
 
@@ -14,6 +17,10 @@ class ShuttleMissionNode(Node):
         super().__init__(node_name)
 
         self.mission_label = mission_label
+        self.declare_parameter('record_bag', True)
+        self.declare_parameter('bag_directory', '')
+        self.bag = None
+        self.current_results = None
         self.declare_parameter('vehicle_ns', 'drone1')
         self.vehicle_ns = self.get_parameter('vehicle_ns').get_parameter_value().string_value
         vehicle_prefix = f'/{self.vehicle_ns}'
@@ -40,6 +47,11 @@ class ShuttleMissionNode(Node):
             qos_profile_sensor_data,
         )
 
+        self.results_sub = self.create_subscription(
+            Float64MultiArray, f'{vehicle_prefix}/fmu/telemetry/controller_results',
+            self.results_cb, qos_profile_sensor_data,
+        )
+
         self.current_state = None
         self.current_autopilot_plot = None
         self.current_pos = None
@@ -55,13 +67,47 @@ class ShuttleMissionNode(Node):
         self.get_logger().info(f'{self.mission_label} mission node started, waiting for telemetry...')
 
     def state_cb(self, msg):
+        self.record_message("fmu/telemetry/state", msg)
         self.current_state = msg
         self.current_pos = msg.position
         self.publish_plot_data_if_ready()
 
     def autopilot_plot_cb(self, msg):
+        self.record_message("fmu/telemetry/autopilot_plot", msg)
         self.current_autopilot_plot = msg
         self.publish_plot_data_if_ready()
+
+    def results_cb(self, msg):
+        self.current_results = msg
+        self.record_message('fmu/telemetry/controller_results', msg)
+
+    def record_message(self, suffix, msg):
+        if self.bag is not None:
+            self.bag.write(f'/{self.vehicle_ns}/{suffix}', msg)
+
+    def start_recording(self, trajectory):
+        if not self.get_parameter('record_bag').value:
+            return
+        if self.current_results is None:
+            raise RuntimeError('No controller_results telemetry received; cannot name or record results')
+        offset = 0
+        kphi = None
+        for dim in self.current_results.layout.dim:
+            if dim.label == 'kphi':
+                kphi = self.current_results.data[offset]
+            offset += dim.size
+        if kphi is None:
+            raise RuntimeError('Controller results do not contain kphi')
+        directory = self.get_parameter('bag_directory').value or default_bag_directory()
+        controller = self.current_results.layout.dim[0].label
+        self.bag = MissionBag(self, directory, controller, self.mission_label, f'{kphi:g}')
+        self.record_message('fmu/mode/follow', trajectory)
+
+    def destroy_node(self):
+        if self.bag is not None:
+            self.bag.close()
+            self.bag = None
+        return super().destroy_node()
 
     def publish_plot_data_if_ready(self):
         if self.phase != 'DONE':
@@ -134,6 +180,7 @@ class ShuttleMissionNode(Node):
             if self.current_pos is not None and self.is_near([0.0, 0.0, -8.0]):
                 self.get_logger().info(f'Reached waypoint! Sending {self.mission_label.upper()} path...')
                 traj = self.build_final_trajectory()
+                self.start_recording(traj)
                 self.follow_pub.publish(traj)
                 self.done_start_time = time.time()
                 self.plot_samples_seen = 0
@@ -143,7 +190,7 @@ class ShuttleMissionNode(Node):
             if (
                 not self.shutdown_requested
                 and self.done_start_time is not None
-                and time.time() - self.done_start_time > 70.0
+                and time.time() - self.done_start_time > 30.0
             ):
                 self.get_logger().info(f'Plot window complete. Shutting down {self.get_name()}...')
                 self.shutdown_requested = True

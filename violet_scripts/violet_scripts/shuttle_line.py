@@ -11,7 +11,7 @@ class ShuttleLineNode(ShuttleMissionNode):
     def build_final_trajectory(self):
         traj = Trajectory()
         traj.path_type = 1  # 1 indicates Line
-        traj.line = [1.0, 1.0, -10.0, 20.0, 20.0, -20.0, 0.15]
+        traj.line = [25.0, -25.0, -15.0, 115.0, 115.0, -30.0, 0.035]
         return traj
 
 

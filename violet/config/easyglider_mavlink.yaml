@@ -1,0 +1,29 @@
+/**:
+  ros__parameters:
+    controllers:
+      type: los4_mavlink
+      update_rate_hz: 100.0
+      los4controller:
+        m: 1.5
+        Tmax: 120.0
+        gains:
+          k1: 1.0
+          k2: 18.0
+          kpE: 0.05
+          kiE: 0.005
+          kpB: 0.002
+          kiB: 1.0e-05
+          ka: 6.0
+          kphi: 10.0
+          ktheta: 10.0
+        limits:
+          throttle_min: 0.0
+          throttle_max: 1.0
+          pitch_min: -0.52
+          pitch_max: 0.52
+          lateral_acceleration_min: -6.0
+          lateral_acceleration_max: 6.0
+    mavlink:
+      discovery_timeout_s: 30.0
+      telemetry_rate_hz: 100.0
+      telemetry_timeout_s: 0.5

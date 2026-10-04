@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+import os
+
+from ament_index_python.packages import get_package_share_directory
+
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.substitutions import LaunchConfiguration
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+
+def generate_launch_description():
+
+  # ----------------------------------------
+  # ---------- LAUNCH SIMULATION -----------
+  # ----------------------------------------
+
+  world_launch_file = IncludeLaunchDescription(
+      PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('violet_gazebo'), 'launch/worlds/helipad.launch.py')),
+      launch_arguments={
+        'gui': LaunchConfiguration('gui')
+      }.items()
+  )
+  
+  vehicle_launch_file = IncludeLaunchDescription(
+    PythonLaunchDescriptionSource(os.path.join(get_package_share_directory('violet_gazebo'), 'launch/vehicles/easyglider_mavlink.launch.py')),
+    launch_arguments={
+      'config_yaml': LaunchConfiguration('config_yaml'),
+            'connection_url': LaunchConfiguration('connection_url')
+    }.items()
+  )
+     
+  config_yaml_arg = DeclareLaunchArgument(
+      'config_yaml',
+      default_value=os.path.join(get_package_share_directory('violet'), 'config', 'easyglider_mavlink.yaml')
+  )
+
+  gui_arg = DeclareLaunchArgument(
+      'gui',
+      default_value='true',
+      description='Launch Gazebo client GUI'
+  )
+     
+  return LaunchDescription([
+    DeclareLaunchArgument('connection_url', default_value='udp://:14540'),
+    config_yaml_arg,
+    gui_arg,
+    world_launch_file,
+    vehicle_launch_file
+  ])

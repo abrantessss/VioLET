@@ -4,11 +4,14 @@ close all; clear; clc;
 addpath(genpath(pwd))
 
 %% Variables
-% CAD model for plot
-modelFolder = 'violet_plots/plots/models/easyglider.stl';
-scale = 5;
-L = 5;
+% 3D model for plot (easyglider_model.m + easyglider_mesh.json must be on the path)
+M = easyglider_model();
+vehicle = struct('M', M, 'scale', 5, 'centre', M.cg_body(:)', ...
+                 'toFRD', diag([1 1 -1]));    % model frame: x forward, y right, z up
+L = 8;                  % body-axis length (m)
+nPoses = 5;             % vehicles drawn in the XY plot
 fontsize = 14;
+figureSize = [16 12];   % [width height] cm, same for the three figures
 
 % read state topic
 %ros2genmsg("violet_msgs", "BuildConfiguration","fasterbuilds")
@@ -63,3 +66,4 @@ end
 pos3d
 pos2d
 poserror
+saveplots

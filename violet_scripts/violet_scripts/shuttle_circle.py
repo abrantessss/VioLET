@@ -11,7 +11,7 @@ class ShuttleCircleNode(ShuttleMissionNode):
     def build_final_trajectory(self):
         traj = Trajectory()
         traj.path_type = 2  # 2 indicates Circle
-        traj.circle = [10.0, 10.0, -15.0, 25.0, 0.15]
+        traj.circle = [-3.0, 10.0, -15.0, 35.0, 0.18]
         return traj
 
 

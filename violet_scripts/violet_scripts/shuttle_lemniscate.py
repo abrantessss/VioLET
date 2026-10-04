@@ -10,8 +10,8 @@ class ShuttleLemniscateNode(ShuttleMissionNode):
 
     def build_final_trajectory(self):
         traj = Trajectory()
-        traj.path_type = 3  # 3 indicates Lemniscate
-        traj.lemniscate = [10.0, 10.0, -15.0, 25.0, 0.15]
+        traj.path_type = 3  # Gerono figure eight; final parameter is phase rate [rad/s]
+        traj.lemniscate = [-5.0, 10.0, -15.0, 30.0, 0.21]
         return traj
 
 

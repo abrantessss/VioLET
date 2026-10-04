@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 
 import math
+import signal
+import subprocess
 import time
+from datetime import datetime
+from pathlib import Path
 
 import rclpy
 from geometry_msgs.msg import Vector3Stamped, WrenchStamped
@@ -14,12 +18,11 @@ from violet_msgs.msg import Mode, State, Trajectory
 
 AXES = {'roll': 0, 'pitch': 1, 'yaw': 2}
 
-TESTS = [
-    ('A roll +rate', [0.6, 0.0, 0.0], 'positive roll rate should create positive roll torque'),
-    ('B pitch +rate', [0.0, 0.6, 0.0], 'positive pitch rate should create positive pitch torque'),
-    ('C yaw +rate', [0.0, 0.0, 0.6], 'positive yaw rate should create positive yaw torque'),
-    #('D combined +rates', [0.6, 0.6, 0.6], 'multi-axis step should publish all requested torque axes'),
-]
+TESTS = {
+    'roll': ('A roll +rate', [0.6, 0.0, 0.0], 'positive roll rate should create positive roll torque'),
+    'pitch': ('B pitch +rate', [0.0, 0.6, 0.0], 'positive pitch rate should create positive pitch torque'),
+    'yaw': ('C yaw +rate', [0.0, 0.0, 0.6], 'positive yaw rate should create positive yaw torque'),
+}
 
 
 def clamp(value, minimum, maximum):
@@ -61,6 +64,9 @@ class CombinedRateControllerTestNode(Node):
         self.declare_parameter('auto_follow', True)
         self.declare_parameter('show_plot', True)
         self.declare_parameter('live_plot', False)
+        self.declare_parameter('test_axis', 'roll')
+        self.declare_parameter('record_bag', True)
+        self.declare_parameter('bag_directory', 'VioLET/src/VioLET/violet_plots/bags')
 
         self.shuttle_ns = self.get_parameter('shuttle_ns').value.strip('/')
         self.fixed_wing_ns = self.get_parameter('fixed_wing_ns').value.strip('/')
@@ -82,6 +88,16 @@ class CombinedRateControllerTestNode(Node):
         self.auto_follow = self.get_parameter('auto_follow').value
         self.show_plot = self.get_parameter('show_plot').value
         self.live_plot = self.get_parameter('live_plot').value
+        self.test_axis = self.get_parameter('test_axis').value.lower()
+        self.record_bag = self.get_parameter('record_bag').value
+        self.bag_directory = self.get_parameter('bag_directory').value
+
+        if self.test_axis not in TESTS:
+            raise ValueError(
+                f'Invalid test_axis {self.test_axis!r}; choose one of: roll, pitch, yaw')
+        self.selected_test = TESTS[self.test_axis]
+        self.bag_process = None
+        self.bag_path = None
 
         if len(self.force_setpoint) != 3:
             self.get_logger().warn('force_setpoint must have three entries; using zeros')
@@ -379,7 +395,7 @@ class CombinedRateControllerTestNode(Node):
         axis_names = ('roll', 'pitch', 'yaw')
         self.get_logger().info(
             f'Step response metrics by rate controller (settle band: +/-{self.tolerance:.3f} rad/s)')
-        for label, sp, _ in TESTS:
+        for label, sp, _ in [self.selected_test]:
             active_axes = [axis for axis, value in enumerate(sp) if abs(value) > 1e-9]
             if not active_axes:
                 continue
@@ -512,6 +528,7 @@ class CombinedRateControllerTestNode(Node):
         return True
 
     def run(self):
+        self.start_bag_recording()
         if self.auto_arm:
             self.get_logger().info(
                 f'Arming /{self.shuttle_ns} and /{self.fixed_wing_ns} with zero allocator setpoint')
@@ -523,7 +540,7 @@ class CombinedRateControllerTestNode(Node):
 
         self.get_logger().info('Starting rate validation. Watch the vehicle response for the note on each test.')
         results = []
-        for label, sp, note in TESTS:
+        for label, sp, note in [self.selected_test]:
             self.get_logger().info(f'Starting test: {label} - {note}')
             half_test_seconds = 0.5 * self.test_seconds
             self.stream_rate_setpoint(sp, half_test_seconds, f'{label} step', reset_integral=True)
@@ -538,7 +555,46 @@ class CombinedRateControllerTestNode(Node):
         for label, passed in results:
             self.get_logger().info(f'{label}: {"PASS" if passed else "CHECK LOGS"}')
         self.log_step_response_metrics()
+        self.stop_bag_recording()
         self.plot_samples()
+
+    def start_bag_recording(self):
+        if not self.record_bag:
+            return
+        bag_root = Path(self.bag_directory).expanduser()
+        if not bag_root.is_absolute():
+            bag_root = Path.cwd() / bag_root
+        bag_root.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.bag_path = bag_root / f'combined_{self.test_axis}_{timestamp}'
+        try:
+            self.bag_process = subprocess.Popen(
+                ['ros2', 'bag', 'record', '-a', '-o', str(self.bag_path)])
+        except OSError as error:
+            raise RuntimeError(f'Could not start rosbag recording: {error}') from error
+        self.get_logger().info(f'Recording rosbag to {self.bag_path}')
+        time.sleep(1.0)
+        if self.bag_process.poll() is not None:
+            return_code = self.bag_process.returncode
+            self.bag_process = None
+            raise RuntimeError(f'Rosbag recorder exited during startup with code {return_code}')
+
+    def stop_bag_recording(self):
+        if self.bag_process is None:
+            return
+        if self.bag_process.poll() is None:
+            self.bag_process.send_signal(signal.SIGINT)
+            try:
+                self.bag_process.wait(timeout=10.0)
+            except subprocess.TimeoutExpired:
+                self.bag_process.terminate()
+                self.bag_process.wait(timeout=5.0)
+        if self.bag_process.returncode not in (0, 2, -signal.SIGINT):
+            self.get_logger().error(
+                f'Rosbag recorder exited with code {self.bag_process.returncode}')
+        else:
+            self.get_logger().info(f'Rosbag saved to {self.bag_path}')
+        self.bag_process = None
 
 
 def main(args=None):
@@ -549,6 +605,7 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
+        node.stop_bag_recording()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

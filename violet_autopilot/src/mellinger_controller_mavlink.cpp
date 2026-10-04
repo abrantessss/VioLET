@@ -1,22 +1,15 @@
+#include "mellinger_controller_mavlink.hpp"
+
+#include <algorithm>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
-#include "mellinger_controller.hpp"
 
 namespace autopilot {
   
-  MellingerController::~MellingerController() {}
+  MellingerControllerMavlink::~MellingerControllerMavlink() {}
 
-  void MellingerController::initialize() {
-    node_->declare_parameter<std::string>("controllers.mellingercontroller.publishers.setpoint", "fmu/in/vehicle_rates_setpoint");
-    rates_pub_ = node_->create_publisher<px4_msgs::msg::VehicleRatesSetpoint>(node_->get_parameter("controllers.mellingercontroller.publishers.setpoint").as_string(), rclcpp::SensorDataQoS());
-    
-    node_->declare_parameter<std::string>("publishers.mode.offboard", "fmu/in/offboard_control_mode");
-    offboard_pub_ = node_->create_publisher<px4_msgs::msg::OffboardControlMode>(node_->get_parameter("publishers.mode.offboard").as_string(), rclcpp::SensorDataQoS());
-    
-    node_->declare_parameter<std::string>("publishers.mode.request", "fmu/in/vehicle_command");
-    mode_pub_ = node_->create_publisher<px4_msgs::msg::VehicleCommand>(node_->get_parameter("publishers.mode.request").as_string(), rclcpp::SensorDataQoS());
-
+  void MellingerControllerMavlink::initialize() {
     node_->declare_parameter<double>("controllers.mellingercontroller.kphi", 0.0005);
     if (!std::isfinite(node_->get_parameter("controllers.mellingercontroller.kphi").as_double()) ||
         node_->get_parameter("controllers.mellingercontroller.kphi").as_double() < 0.0) {
@@ -33,6 +26,16 @@ namespace autopilot {
     auto kd = node_->get_parameter("controllers.mellingercontroller.gains.kd").as_double_array();
     auto kr = node_->get_parameter("controllers.mellingercontroller.gains.kr").as_double_array();
 
+    if (kp.size() != 3 || kd.size() != 3 || kr.size() != 3 ||
+        !std::isfinite(mass_) || mass_ <= 0.0) {
+      throw std::invalid_argument("Mellinger requires positive mass and three gains per axis group");
+    }
+    for (const auto& gains : {kp, kd, kr}) {
+      for (double gain : gains) {
+        if (!std::isfinite(gain)) throw std::invalid_argument("Non-finite Mellinger gain");
+      }
+    }
+
     kp_ = Eigen::Matrix3d::Identity();
     kd_ = Eigen::Matrix3d::Identity();
     kr_ = Eigen::Matrix3d::Identity();
@@ -43,26 +46,26 @@ namespace autopilot {
     }
 
     // Log the gains
-    RCLCPP_INFO_STREAM(node_->get_logger(), "MellingerController vehicle mass: m = " << mass_);
-    RCLCPP_INFO_STREAM(node_->get_logger(), "MellingerController gains: kp = [" << kp[0] << ", " << kp[1] << ", " << kp[2] << "]");
-    RCLCPP_INFO_STREAM(node_->get_logger(), "MellingerController gains: kd = [" << kd[0] << ", " << kd[1] << ", " << kd[2] << "]");
-    RCLCPP_INFO_STREAM(node_->get_logger(), "MellingerController gains: kr = [" << kr[0] << ", " << kr[1] << ", " << kr[2] << "]");
+    RCLCPP_INFO_STREAM(node_->get_logger(), "MellingerControllerMavlink vehicle mass: m = " << mass_);
+    RCLCPP_INFO_STREAM(node_->get_logger(), "MellingerControllerMavlink gains: kp = [" << kp[0] << ", " << kp[1] << ", " << kp[2] << "]");
+    RCLCPP_INFO_STREAM(node_->get_logger(), "MellingerControllerMavlink gains: kd = [" << kd[0] << ", " << kd[1] << ", " << kd[2] << "]");
+    RCLCPP_INFO_STREAM(node_->get_logger(), "MellingerControllerMavlink gains: kr = [" << kr[0] << ", " << kr[1] << ", " << kr[2] << "]");
 
-    // Log that the MellingerController was initialized
-    RCLCPP_INFO(node_->get_logger(), "MellingerController initialized");
+    // Log that the MellingerControllerMavlink was initialized
+    RCLCPP_INFO(node_->get_logger(), "MellingerControllerMavlink initialized");
   }
 
-  void MellingerController::set_position(const double dt, const Eigen::Vector3d& p) {
+  void MellingerControllerMavlink::set_position(const double dt, const Eigen::Vector3d& p) {
     (void)dt;
     (void)p;
     RCLCPP_WARN_THROTTLE(
       node_->get_logger(),
       *node_->get_clock(),
       5000,
-      "MellingerController does not support position setpoints");
+      "MellingerControllerMavlink does not support position setpoints");
   }
 
-  void MellingerController::set_attitude(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v) {
+  void MellingerControllerMavlink::set_attitude(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v) {
     (void)dt;
     (void)p;
     (void)v;
@@ -70,10 +73,10 @@ namespace autopilot {
       node_->get_logger(),
       *node_->get_clock(),
       5000,
-      "MellingerController does not support attitude control");
+      "MellingerControllerMavlink does not support attitude control");
   }
 
-  void MellingerController::set_attitude_rate(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v, const Eigen::Vector3d& eta) {
+  void MellingerControllerMavlink::set_attitude_rate(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v, const Eigen::Vector3d& eta) {
     const double gamma_at_evaluation = gamma_;
     // Evaluate the entire reference at the current phase. Advance only for the next cycle.
     double gamma_dot = 0.0;
@@ -225,24 +228,17 @@ namespace autopilot {
     // Get translational control law
     Eigen::Vector3d u = -kp_*ep - kd_*ev + pddd;
 
-        // Calculate thrust
+    // Calculate thrust
     Eigen::Vector3d Fd = mass_ * (u - g_);
     double T = -Fd.dot(R.col(2));
 
     // Calculate desired rotation
-    constexpr double kMinNorm = 1e-6;
-
     Eigen::Vector3d Yc = Eigen::Vector3d(0.0, 1.0, 0.0); //eta_d [0 0 0]'
-    const double Fd_norm = std::max(Fd.norm(), kMinNorm);
-    Eigen::Vector3d Zbd = -Fd / Fd_norm;
-
+    Eigen::Vector3d Zbd = -Fd/Fd.norm();
     Eigen::Vector3d Xbd = Yc.cross(Zbd);
-    const double Xbd_norm = std::max(Xbd.norm(), kMinNorm);
-    Xbd = Xbd / Xbd_norm;
-
+    Xbd = Xbd/Xbd.norm();
     Eigen::Vector3d Ybd = Zbd.cross(Xbd);
-    const double Ybd_norm = std::max(Ybd.norm(), kMinNorm);
-    Ybd = Ybd / Ybd_norm;
+    Ybd = Ybd/Ybd.norm();
 
     Eigen::Matrix3d Rd;
     Rd.col(0) = Xbd;
@@ -256,14 +252,10 @@ namespace autopilot {
     Eigen::Vector3d az = mass_ * (g_ - u);
     Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
 
-    const double az_norm = std::max(az.norm(), kMinNorm);
-    const double az_sqnorm = az_norm * az_norm;
-    Eigen::Vector3d Zbdd = -mass_ / az_norm * (I - (az * az.transpose()) / az_sqnorm) * pdddd;
+    Eigen::Vector3d Zbdd = -mass_ / az.norm() * (I - (az * az.transpose()) / az.squaredNorm()) * pdddd;
 
     Eigen::Vector3d ax = Yc.cross(Zbd);
-    const double ax_norm = std::max(ax.norm(), kMinNorm);
-    const double ax_sqnorm = ax_norm * ax_norm;
-    Eigen::Vector3d Xbdd = 1.0 / ax_norm * (I - (ax * ax.transpose()) / ax_sqnorm) * (Ycd.cross(Zbd) + Yc.cross(Zbdd));
+    Eigen::Vector3d Xbdd = 1.0 / ax.norm() * (I - (ax * ax.transpose()) / ax.squaredNorm()) * (Ycd.cross(Zbd) + Yc.cross(Zbdd));
 
     Eigen::Vector3d Ybdd = Zbdd.cross(Xbd) + Zbd.cross(Xbdd);
 
@@ -292,32 +284,23 @@ namespace autopilot {
     Eigen::Vector3d attitude_rate = wd - (kr_ * eR);
     
 
-    const uint64_t now_us = node_->get_clock()->now().nanoseconds() / 1000;
-
-    rates_msg_.timestamp = now_us;
-    
-    rates_msg_.roll = attitude_rate[0]; 
-    rates_msg_.pitch = attitude_rate[1];
-    rates_msg_.yaw = attitude_rate[2];
-    rates_msg_.thrust_body[0] = 0.0f;
-    rates_msg_.thrust_body[1] = 0.0f;
-    rates_msg_.thrust_body[2] = static_cast<float>(-std::clamp(T / 120, 0.0, 1.0)); 
-  
-    rates_pub_->publish(rates_msg_);
-
-    offboard_msg_.timestamp = now_us;
-    offboard_msg_.position = false;
-    offboard_msg_.velocity = false;
-    offboard_msg_.acceleration = false;
-    offboard_msg_.attitude = false;
-    offboard_msg_.body_rate = true;
-    offboard_msg_.thrust_and_torque = false;
-    offboard_msg_.direct_actuator = false;
-
-    offboard_pub_->publish(offboard_msg_);
+    // PX4 and MAVSDK use FRD body axes. MAVSDK takes degrees/s and
+    // positive collective thrust, whereas the DDS setpoint uses negative body Z.
+    if (!attitude_rate.allFinite() || !std::isfinite(T)) {
+      throw std::runtime_error("Non-finite Mellinger rate/thrust command");
+    }
+    constexpr double rad_to_deg = 180.0 / 3.14159265358979323846;
+    const auto result = offboard_->set_attitude_rate({
+      static_cast<float>(attitude_rate[0] * rad_to_deg),
+      static_cast<float>(attitude_rate[1] * rad_to_deg),
+      static_cast<float>(attitude_rate[2] * rad_to_deg),
+      static_cast<float>(std::clamp(T / 134.0, 0.0, 1.0))});
+    if (result != mavsdk::Offboard::Result::Success) {
+      throw std::runtime_error("MAVSDK rejected body-rate setpoint");
+    }
   }
 
-  void MellingerController::set_path(const int type, const double* path) {
+  void MellingerControllerMavlink::set_path(const int type, const double* path) {
     path_.type = type;
     gamma_ = 0.0;
 
@@ -340,17 +323,6 @@ namespace autopilot {
       path_.lemniscate_v = path[4];
     }
 
-    px4_msgs::msg::VehicleCommand msg{};
-    msg.timestamp = node_->get_clock()->now().nanoseconds() / 1000;
-    msg.command = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_DO_SET_MODE;
-    msg.param1 = 1;
-    msg.param2 = 6;
-    msg.target_system = vehicle_id_;
-    msg.target_component = 1;
-    msg.source_system = 1;
-    msg.source_component = 1;
-    msg.from_external = true;
-
-    mode_pub_->publish(msg);
+    // AutopilotMavlink primes setpoints before requesting Offboard mode.
   }
 }
