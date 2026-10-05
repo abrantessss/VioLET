@@ -301,7 +301,10 @@ namespace autopilot {
     rates_msg_.yaw = attitude_rate[2];
     rates_msg_.thrust_body[0] = 0.0f;
     rates_msg_.thrust_body[1] = 0.0f;
-    rates_msg_.thrust_body[2] = static_cast<float>(-std::clamp(T / 120, 0.0, 1.0)); 
+    const double kf = 1.709716e-05;          // motorConstant
+    const double omega = std::sqrt(std::max(T, 0.0) / (4.0 * kf));
+    const double cmd = std::clamp((omega - 100.0) / 1400.0, 0.0, 1.0);
+    rates_msg_.thrust_body[2] = static_cast<float>(-cmd);
   
     rates_pub_->publish(rates_msg_);
 

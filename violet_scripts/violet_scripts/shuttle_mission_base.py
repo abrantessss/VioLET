@@ -154,21 +154,21 @@ class ShuttleMissionNode(Node):
                 self.phase = 'WAIT_ARMABLE'
 
         elif self.phase == 'WAIT_ARMABLE':
-            if time.time() - self.start_time > 3.0:
+            if time.time() - self.start_time > 1.0:
                 self.get_logger().info('Sending ARM command...')
                 self.arm_pub.publish(Mode())
                 self.start_time = time.time()
                 self.phase = 'ARMING'
 
         elif self.phase == 'ARMING':
-            if time.time() - self.start_time > 3.0:
+            if time.time() - self.start_time > 1.0:
                 self.get_logger().info('Sending TAKEOFF command...')
                 self.takeoff_pub.publish(Mode())
                 self.start_time = time.time()
                 self.phase = 'TAKEOFF'
 
         elif self.phase == 'TAKEOFF':
-            if time.time() - self.start_time > 10.0:
+            if time.time() - self.start_time > 8.0:
                 self.get_logger().info('Sending WAYPOINT [0, 0, -8]...')
                 traj = Trajectory()
                 traj.path_type = 0
