@@ -22,7 +22,7 @@
         offboard: "fmu/in/offboard_control_mode"
         request: "fmu/in/vehicle_command"
     controllers:
-      type: "mellinger"
+      type: "combined_vehicle_controller"
       update_rate_hz: 500.0
       onboardcontroller:
         publishers:
@@ -246,7 +246,7 @@
           -0.248, -0.248, -0.51]
         quad_sigmas: [1.0, 1.0, -1.0, -1.0]
         quad_moment_constant: 0.016
-        fixed_wing_prop_position: [0.345, 0.0, 0.2983]
+        fixed_wing_prop_position: [0.345, 0.0, 0.3712]
         fixed_wing_sigma: -1.0
         fixed_wing_moment_constant: 0.012
         motor_constants: [1.709716e-05, 1.709716e-05, 1.709716e-05, 1.709716e-05, 8.54858e-06]
