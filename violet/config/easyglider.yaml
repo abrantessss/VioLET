@@ -39,7 +39,7 @@
           longitudinal: "fmu/in/fixed_wing_longitudinal_setpoint"
       los3controller:
         m: 1.5  # kg
-        Tmax: 104.7  # Nm
+        Tmax: 104.72  # Nm
         gains:
           k1: 1.0
           k2: 20.0
@@ -59,8 +59,8 @@
           lateral: "fmu/in/fixed_wing_lateral_setpoint"
           longitudinal: "fmu/in/fixed_wing_longitudinal_setpoint"
       los4controller:
-        m: 1.5  # kg
-        Tmax: 120.0  # N
+        m: 1.48  # kg
+        Tmax: 104.720105  # N; Gazebo motorConstant * maxRotVelocity^2
         gains:
           k1: 1.0
           k2: 18.0

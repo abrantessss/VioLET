@@ -46,12 +46,14 @@ namespace autopilot {
       const double tmax)
     {
       const double integral_candidate = energy_error_integral + energy_error * dt;
-      const double command_unsaturated =
+      const double thrust_fraction_unsaturated =
         (ki * integral_candidate + (feedforward - kp * energy_error) / va) / tmax;
-      const double command = std::clamp(command_unsaturated, 0.0, 1.0);
+      // Gazebo maps throttle linearly to rotor speed, with thrust proportional
+      // to speed squared: T = Tmax * throttle^2.
+      const double command = std::sqrt(std::clamp(thrust_fraction_unsaturated, 0.0, 1.0));
 
-      const bool saturated_high = command_unsaturated > 1.0;
-      const bool saturated_low = command_unsaturated < 0.0;
+      const bool saturated_high = thrust_fraction_unsaturated > 1.0;
+      const bool saturated_low = thrust_fraction_unsaturated < 0.0;
       const bool drives_out_of_high_saturation = saturated_high && energy_error < 0.0;
       const bool drives_out_of_low_saturation = saturated_low && energy_error > 0.0;
 

@@ -33,7 +33,7 @@
         gains:
           kp: [2.5, 2.5, 3.0]
           kd: [4.2, 4.2, 4.0]
-          kr: [5.0, 5.0, 4.2]
+          kr: [5.0, 5.0, 5.0]
         publishers:
           setpoint: "fmu/in/vehicle_rates_setpoint"
       shuttleratecontroller:
@@ -191,7 +191,7 @@
         fixed_wing_vehicle_id: 2
         gain_form: "parallel"
         shuttle_mass: 3.5
-        fixed_wing_mass: 1.5
+        fixed_wing_mass: 1.48
         gravity: 9.80665
         # Path and velocity feedback use the shuttle PX4 odometry directly.
         gains:
