@@ -18,6 +18,7 @@ def generate_launch_description():
     arguments = [
         DeclareLaunchArgument('vehicle_ns', default_value='drone1'),
         DeclareLaunchArgument('plot_data_topic', default_value=''),
+        DeclareLaunchArgument('controller_results_topic', default_value=''),
         DeclareLaunchArgument('attitude_reference_topic', default_value=''),
         DeclareLaunchArgument('force_reference_topic', default_value=''),
         DeclareLaunchArgument('force_achieved_topic', default_value=''),
@@ -37,6 +38,7 @@ def generate_launch_description():
         parameters=[{
             'vehicle_ns': LaunchConfiguration('vehicle_ns'),
             'plot_data_topic': LaunchConfiguration('plot_data_topic'),
+            'controller_results_topic': LaunchConfiguration('controller_results_topic'),
             'attitude_reference_topic': LaunchConfiguration('attitude_reference_topic'),
             'force_reference_topic': LaunchConfiguration('force_reference_topic'),
             'force_achieved_topic': LaunchConfiguration('force_achieved_topic'),

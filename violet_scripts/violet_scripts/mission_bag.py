@@ -22,14 +22,19 @@ def default_bag_directory():
 
 
 class MissionBag:
-    def __init__(self, node, directory, controller, trajectory, kphi):
+    def __init__(self, node, directory, controller, trajectory, kphi=None, *, gains=None):
         self.node = node
         self.topics = set()
         root = Path(directory).expanduser().resolve()
         root.mkdir(parents=True, exist_ok=True)
         clean = lambda value: re.sub(r'[^a-zA-Z0-9_.-]', '_', str(value))
         stamp = datetime.now().astimezone().strftime('%Y-%m-%d_%H-%M-%S_%f')
-        self.path = root / f'{clean(controller)}_{clean(trajectory)}_kphi{clean(kphi)}_{stamp}'
+        if gains is None:
+            gain_label = f'kphi{clean(kphi)}'
+        else:
+            gain_label = '_'.join(f'{clean(name)}{clean(value)}' for name, value in gains.items())
+        gain_suffix = f'_{gain_label}' if gain_label else ''
+        self.path = root / f'{clean(controller)}_{clean(trajectory)}{gain_suffix}_{stamp}'
         self.writer = rosbag2_py.SequentialWriter()
         self.writer.open(
             rosbag2_py.StorageOptions(uri=str(self.path), storage_id='sqlite3'),
@@ -37,7 +42,7 @@ class MissionBag:
         )
         node.get_logger().info(f'Recording mission rosbag: {self.path}')
 
-    def write(self, topic, msg):
+    def write(self, topic, msg, timestamp=None):
         if topic not in self.topics:
             module = type(msg).__module__.split('.')[0]
             self.writer.create_topic(rosbag2_py.TopicMetadata(
@@ -45,7 +50,9 @@ class MissionBag:
                 serialization_format='cdr',
             ))
             self.topics.add(topic)
-        self.writer.write(topic, serialize_message(msg), self.node.get_clock().now().nanoseconds)
+        if timestamp is None:
+            timestamp = self.node.get_clock().now().nanoseconds
+        self.writer.write(topic, serialize_message(msg), timestamp)
 
     def close(self):
         # Humble SequentialWriter finalizes metadata when released.

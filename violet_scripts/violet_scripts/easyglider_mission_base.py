@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 import time
+import math
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
+
+from std_msgs.msg import Float64MultiArray
+from violet_scripts.mission_bag import MissionBag, default_bag_directory
 
 from violet_msgs.msg import AutopilotPlot, Mode, PlotData, State, Trajectory
 
@@ -13,6 +17,12 @@ class EasyGliderMissionNode(Node):
         super().__init__(node_name)
 
         self.mission_label = mission_label
+        self.declare_parameter('record_bag', True)
+        self.declare_parameter('bag_directory', '')
+        self.bag = None
+        self.recording_pending = False
+        self.recording_started_at = None
+        self.pending_messages = []
         self.declare_parameter('vehicle_ns', 'drone1')
         self.vehicle_ns = self.get_parameter('vehicle_ns').get_parameter_value().string_value
         vehicle_prefix = f'/{self.vehicle_ns}'
@@ -41,6 +51,11 @@ class EasyGliderMissionNode(Node):
             qos_profile_sensor_data,
         )
 
+        self.results_sub = self.create_subscription(
+            Float64MultiArray, f'{vehicle_prefix}/fmu/telemetry/controller_results',
+            self.results_cb, qos_profile_sensor_data,
+        )
+
         self.current_state = None
         self.current_autopilot_plot = None
         self.phase = 'WAIT_FOR_STATE'
@@ -55,12 +70,60 @@ class EasyGliderMissionNode(Node):
         self.get_logger().info(f'{self.mission_label} mission node started, waiting for telemetry...')
 
     def state_cb(self, msg):
+        self.record_message('fmu/telemetry/state', msg)
         self.current_state = msg
         self.publish_plot_data_if_ready()
 
     def autopilot_plot_cb(self, msg):
+        self.record_message('fmu/telemetry/autopilot_plot', msg)
         self.current_autopilot_plot = msg
         self.publish_plot_data_if_ready()
+
+    def record_message(self, suffix, msg):
+        topic = f'/{self.vehicle_ns}/{suffix}'
+        timestamp = self.get_clock().now().nanoseconds
+        if self.bag is not None:
+            self.bag.write(topic, msg, timestamp)
+        elif self.recording_pending:
+            self.pending_messages.append((topic, msg, timestamp))
+
+    def start_recording(self, trajectory):
+        if not self.get_parameter('record_bag').value:
+            return
+        # LOS4 starts publishing results only after FOLLOW. Preserve the command
+        # and any early telemetry while awaiting live gains for the bag name.
+        self.recording_pending = True
+        self.recording_started_at = time.monotonic()
+        self.record_message('fmu/mode/follow', trajectory)
+
+    def results_cb(self, msg):
+        if self.recording_pending:
+            gains = {}
+            offset = 0
+            for dim in msg.layout.dim:
+                if dim.label in ('k1', 'k2') and dim.size == 1:
+                    value = msg.data[offset]
+                    if not math.isfinite(value):
+                        raise RuntimeError(f'Non-finite LOS4 {dim.label} in controller results')
+                    gains[dim.label] = f'{value:g}'
+                offset += dim.size
+            if not msg.layout.dim or msg.layout.dim[0].label != 'los4' or len(gains) != 2:
+                raise RuntimeError('Easyglider recording requires LOS4 results with k1 and k2')
+            directory = self.get_parameter('bag_directory').value or default_bag_directory()
+            self.bag = MissionBag(self, directory, 'los4', self.mission_label,
+                                  gains={key: gains[key] for key in ('k1', 'k2')})
+            for topic, message, timestamp in self.pending_messages:
+                self.bag.write(topic, message, timestamp)
+            self.pending_messages.clear()
+            self.recording_pending = False
+        self.record_message('fmu/telemetry/controller_results', msg)
+
+    def destroy_node(self):
+        if self.bag is not None:
+            self.bag.close()
+            self.bag = None
+        self.pending_messages.clear()
+        return super().destroy_node()
 
     def publish_plot_data_if_ready(self):
         if self.phase != 'DONE':
@@ -100,6 +163,9 @@ class EasyGliderMissionNode(Node):
         raise NotImplementedError
 
     def timer_cb(self):
+        if self.recording_pending and time.monotonic() - self.recording_started_at > 5.0:
+            raise RuntimeError('No LOS4 controller results within 5s of FOLLOW; cannot record mission')
+
         if self.phase == 'WAIT_FOR_STATE':
             if self.current_state is not None:
                 self.get_logger().info('Telemetry received. Waiting 3s for vehicle to be fully armable...')
@@ -138,6 +204,7 @@ class EasyGliderMissionNode(Node):
             if time.time() - self.start_time > 5.0:
                 self.get_logger().info(f'Sending {self.mission_label.upper()} trajectory...')
                 traj = self.build_trajectory()
+                self.start_recording(traj)
                 self.follow_pub.publish(traj)
                 self.done_start_time = time.time()
                 self.plot_samples_seen = 0
@@ -147,7 +214,7 @@ class EasyGliderMissionNode(Node):
             if (
                 not self.shutdown_requested
                 and self.done_start_time is not None
-                and time.time() - self.done_start_time > 90.0
+                and time.time() - self.done_start_time > 60.0
             ):
                 self.get_logger().info(f'Plot window complete. Shutting down {self.get_name()}...')
                 self.shutdown_requested = True

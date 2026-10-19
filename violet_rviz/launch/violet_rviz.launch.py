@@ -17,6 +17,8 @@ def generate_launch_description():
 
     vehicle_ns_arg = DeclareLaunchArgument('vehicle_ns', default_value='drone1')
     plot_data_topic_arg = DeclareLaunchArgument('plot_data_topic', default_value='')
+    controller_results_topic_arg = DeclareLaunchArgument(
+        'controller_results_topic', default_value='')
     output_prefix_arg = DeclareLaunchArgument('output_prefix', default_value='rviz_plots')
     history_length_arg = DeclareLaunchArgument('history_length', default_value='2000')
     desired_velocity_path_scaled_arg = DeclareLaunchArgument(
@@ -33,6 +35,7 @@ def generate_launch_description():
         parameters=[{
             'vehicle_ns': LaunchConfiguration('vehicle_ns'),
             'plot_data_topic': LaunchConfiguration('plot_data_topic'),
+            'controller_results_topic': LaunchConfiguration('controller_results_topic'),
             'output_prefix': LaunchConfiguration('output_prefix'),
             'history_length': LaunchConfiguration('history_length'),
             'desired_velocity_path_scaled': LaunchConfiguration(
@@ -48,6 +51,7 @@ def generate_launch_description():
     return LaunchDescription([
         vehicle_ns_arg,
         plot_data_topic_arg,
+        controller_results_topic_arg,
         output_prefix_arg,
         history_length_arg,
         desired_velocity_path_scaled_arg,

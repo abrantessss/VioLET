@@ -1,0 +1,66 @@
+FIXED-WING RC / LOS4 / RVIZ / CAMERA / OPTIONAL ROSBAG
+
+Network: Pi capture@192.168.1.38, desktop 192.168.1.94.
+Use current IPs if they change.
+
+1. DESKTOP — copy updated source and tests to Pi
+
+cd /home/abrantess/Downloads/capture-pi-saved/fil2k
+scp MAVSDK/CAPTURE/pf_los4/src/{pf_los4.cpp,los4_config.hpp,los4_safety.hpp,los4_runtime.hpp,los4_runtime.cpp,los4_diagnostics.hpp} capture@192.168.1.38:~/MAVSDK/CAPTURE/pf_los4/src/
+
+2. PI — compile (MAVSDK 2 already installed)
+
+ssh capture@192.168.1.38
+cd ~/MAVSDK/CAPTURE/pf_los4
+cmake -S . -B build
+cmake --build build -j1
+
+3. DESKTOP — rebuild and launch RViz (recording OFF by default)
+
+cd ~/VioLET
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+colcon build --packages-select rviz_2d_plot_plugin violet_rviz --cmake-args -DMAVSDK_DIR=/home/abrantess/pegasus_external/install/mavsdk_vendor/lib/cmake/MAVSDK
+source install/setup.bash
+ros2 launch violet_rviz pf_los4_rviz.launch.py connection_url:=udp://:14540 camera_url:=tcp://192.168.1.38:8888
+
+To record, instead run this launch command:
+
+ros2 launch violet_rviz pf_los4_rviz.launch.py record_bag:=true connection_url:=udp://:14540 camera_url:=tcp://192.168.1.38:8888
+
+Bag directory: ~/VioLET/src/VioLET/violet_plots/bags/
+Bag prefix: real_fixedwing_test_data_ followed by date/time.
+Ctrl-C closes the recorder. Use camera_enabled:=false if camera is not running.
+
+4. PI CONSOLE — gamma-only test, no aircraft commands
+
+cd ~/MAVSDK/CAPTURE/pf_los4
+./build/pf_los4 serial:///dev/ttyAMA0:115200 10 udp://192.168.1.94:14540 --controller-enabled false --test-gamma true --offline false
+
+OR observe/forward only:
+
+./build/pf_los4 serial:///dev/ttyAMA0:115200 10 udp://192.168.1.94:14540 --controller-enabled false --test-gamma false --offline false
+
+5. PI CONSOLE — controller run (after hardware/Offboard validation)
+Stop any previous pf_los4 instance before opening the UART.
+Gains, mass, thrust mapping and limits remain the existing simulation defaults.
+
+./build/pf_los4 serial:///dev/ttyAMA0:115200 10 udp://192.168.1.94:14540 --controller-enabled true --test-gamma false --offline false --rc-channel 7 --kill-channel 6 --kill-active-high true --return-mode manual
+
+RC/PX4 arms and takes off (arm switch channel 5).
+Channel 6 HIGH kills/inhibits control; the script never clears kill.
+Channel 7 low/mid: Manual. While airborne with adequate speed, wait in Manual
+for >=1.2 seconds to establish the required Offboard preparation stream.
+Channel 7 HIGH and actual PX4 Offboard: LOS4 active, gamma advances.
+Switch low/mid: active controller stops; RC selects Manual.
+Fault or stale input: stop setpoints, request Manual, latch until Manual cycle.
+Link/process loss recovery still relies on PX4 configured failsafes.
+The script NEVER requests arming, takeoff or entry into Offboard.
+
+6. SEPARATE PI CONSOLE — camera
+
+rpicam-vid -t 0 -n --codec h264 --inline --width 640 --height 480 --framerate 15 --bitrate 1000000 --intra 15 --listen -o tcp://0.0.0.0:8888
+
+RViz shows actual mode, armed and kill status above the vehicle.
+Named actuators: motor MAIN8, elevator MAIN4, rudder MAIN3, right aileron MAIN2,
+left aileron MAIN1. Plot scaling defaults: PWM1000=-1, PWM1500=0, PWM2000=1.

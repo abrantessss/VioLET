@@ -35,6 +35,7 @@ setup(
             'combined_vehicle_line = violet_scripts.combined_vehicle_line:main',
             'combined_vehicle_circle = violet_scripts.combined_vehicle_circle:main',
             'combined_vehicle_lemniscate = violet_scripts.combined_vehicle_lemniscate:main',
+            'shuttle_motor_test = violet_scripts.shuttle_motor_test:main',
             'shuttle_rate_controller_test = violet_scripts.shuttle_rate_controller_test:main',
         ],
     },

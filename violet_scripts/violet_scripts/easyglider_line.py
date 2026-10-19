@@ -11,7 +11,7 @@ class EasyGliderLineNode(EasyGliderMissionNode):
     def build_trajectory(self):
         traj = Trajectory()
         traj.path_type = 1  # 1 indicates Line
-        traj.line = [0.0, 0.0, -25.0, 160.0, 60.0, -35.0, 12.0]
+        traj.line = [-200.0, 60.0, -35.0, 160.0, 90.0, -45.0, 20.0]
         return traj
 
 

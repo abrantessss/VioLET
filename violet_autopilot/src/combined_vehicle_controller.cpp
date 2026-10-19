@@ -91,15 +91,10 @@ namespace autopilot {
       return stream.str();
     }
 
-    Eigen::Vector3d lemniscate_derivative(const double a, const double gamma) {
-      const double sine = std::sin(gamma);
-      const double denominator = 1.0 + sine * sine;
-      Eigen::Vector3d derivative;
-      derivative <<
-        a * sine * (sine * sine - 3.0) / (denominator * denominator),
-        a * (1.0 - 3.0 * sine * sine) / (denominator * denominator),
-        0.0;
-      return derivative;
+    Eigen::Vector3d lemniscate_derivative(const double a, const double gamma)
+    {
+      // Gerono lemniscate, matching Mellinger's path geometry.
+      return Eigen::Vector3d(-a * std::sin(gamma), a * std::cos(2.0 * gamma), 0.0);
     }
 
     double signed_horizontal_curvature(
@@ -196,6 +191,8 @@ namespace autopilot {
     node_->declare_parameter<double>("controllers.combinedvehiclecontroller.gains.yaw.ki", 0.0);
     node_->declare_parameter<double>("controllers.combinedvehiclecontroller.gains.yaw.kd", 0.0);
     node_->declare_parameter<std::string>("controllers.combinedvehiclecontroller.gain_form", "parallel");
+    node_->declare_parameter<double>(
+      "controllers.combinedvehiclecontroller.attitude_ff_filter_tau", 0.2);
     node_->declare_parameter<std::vector<double>>(
       "controllers.combinedvehiclecontroller.output_limits.roll",
       {-2.0, 2.0});
@@ -387,6 +384,13 @@ namespace autopilot {
       RCLCPP_WARN(
         node_->get_logger(),
         "attitude_rate_limits must contain roll, pitch, yaw; using [1 1 1]");
+    }
+
+    attitude_ff_filter_tau_ = node_->get_parameter(
+      "controllers.combinedvehiclecontroller.attitude_ff_filter_tau").as_double();
+    if (!std::isfinite(attitude_ff_filter_tau_) || attitude_ff_filter_tau_ <= 0.0) {
+      RCLCPP_WARN(node_->get_logger(), "attitude_ff_filter_tau must be positive; using 0.2 s");
+      attitude_ff_filter_tau_ = 0.2;
     }
 
     RateController::Config rate_config;
@@ -764,22 +768,31 @@ namespace autopilot {
           std::sin(attitude_error(axis)), std::cos(attitude_error(axis)));
       }
 
-      // Obtain the Euler-setpoint rates from consecutive attitude setpoints.
-      Eigen::Vector3d euler_rate_setpoint = Eigen::Vector3d::Zero();
-      if (have_previous_attitude_setpoint_ && dt > 0.0 && std::isfinite(dt)) {
-        for (int axis = 0; axis < 3; ++axis) {
-          const double setpoint_delta = std::atan2(
-            std::sin(attitude_sp_(axis) - previous_attitude_sp_(axis)),
-            std::cos(attitude_sp_(axis) - previous_attitude_sp_(axis)));
-          euler_rate_setpoint(axis) = setpoint_delta / dt;
+      // Differentiate wrapped attitude references, then low-pass each Euler rate.
+      attitude_ff_rate_raw_.setZero();
+      if (dt > 0.0 && std::isfinite(dt)) {
+        if (have_previous_attitude_setpoint_) {
+          for (int axis = 0; axis < 3; ++axis) {
+            const double delta = std::atan2(
+              std::sin(attitude_sp_(axis) - previous_attitude_sp_(axis)),
+              std::cos(attitude_sp_(axis) - previous_attitude_sp_(axis)));
+            attitude_ff_rate_raw_(axis) = delta / dt;
+          }
+          const double alpha = -std::expm1(-dt / attitude_ff_filter_tau_);
+          attitude_ff_rate_filtered_ += alpha *
+            (attitude_ff_rate_raw_ - attitude_ff_rate_filtered_);
+        } else {
+          attitude_ff_rate_filtered_.setZero();
         }
+        previous_attitude_sp_ = attitude_sp_;
+        have_previous_attitude_setpoint_ = true;
+      } else {
+        attitude_ff_rate_filtered_.setZero();
+        have_previous_attitude_setpoint_ = false;
       }
-      previous_attitude_sp_ = attitude_sp_;
-      have_previous_attitude_setpoint_ = true;
 
-      // P-plus-feedforward Euler rates [phi_dot_c, theta_dot_c, psi_dot_c].
       const Eigen::Vector3d euler_rate_command =
-        attitude_kp_.cwiseProduct(attitude_error) + euler_rate_setpoint;
+        attitude_kp_.cwiseProduct(attitude_error) + attitude_ff_rate_filtered_;
 
       // ZYX Euler-rate to body-rate transformation, evaluated using the
       // current measured roll and pitch on every control cycle.
@@ -806,6 +819,86 @@ namespace autopilot {
     }
     update_rate_controller(dt);
     publish_actuators();
+    publish_results(p, v);
+  }
+
+  void CombinedVehicleController::publish_results(
+    const Eigen::Vector3d& p, const Eigen::Vector3d& v) {
+    const auto& gains = rate_controller_.config();
+    const auto& debug = rate_controller_.debug();
+    auto values = [](const auto& vector) {
+      return std::vector<double>(vector.data(), vector.data() + vector.size());
+    };
+    auto rotation = [](const Eigen::Vector3d& angles) {
+      return (Eigen::AngleAxisd(angles.z(), Eigen::Vector3d::UnitZ()) *
+              Eigen::AngleAxisd(angles.y(), Eigen::Vector3d::UnitY()) *
+              Eigen::AngleAxisd(angles.x(), Eigen::Vector3d::UnitX())).toRotationMatrix();
+    };
+    auto matrix_values = [](const Eigen::Matrix3d& matrix) {
+      std::vector<double> entries;
+      for (int row = 0; row < 3; ++row)
+        for (int col = 0; col < 3; ++col) entries.push_back(matrix(row, col));
+      return entries;
+    };
+    const Eigen::Vector3d ep = p - position_sp_;
+    Eigen::Vector3d attitude_error = attitude_sp_ - attitude_measured_;
+    for (int axis = 0; axis < 3; ++axis)
+      attitude_error(axis) = std::atan2(std::sin(attitude_error(axis)),
+                                      std::cos(attitude_error(axis)));
+    const Eigen::Matrix3d R = rotation(attitude_measured_);
+    const Eigen::Matrix3d Rd = rotation(attitude_sp_);
+    const Eigen::Matrix3d Re = Rd.transpose() * R - R.transpose() * Rd;
+    const Eigen::Vector3d eR(-0.5 * Re(1,2), 0.5 * Re(0,2), -0.5 * Re(0,1));
+    const Eigen::Matrix<double, 5, 1> maxima =
+      motor_constants_.cwiseProduct(max_rot_velocities_.cwiseProduct(max_rot_velocities_));
+    const Eigen::Matrix<double, 5, 1> requested_wrench = normalized_wrench_to_physical(wrench_);
+    const Eigen::Matrix<double, 5, 1> wrench_error = requested_wrench - achieved_wrench_results_;
+    const Eigen::Vector3d rate_error = omega_sp_ - omega_measured_;
+    const Eigen::Vector3d pdd = dpd_results_ * gamma_dot_results_;
+    publish_named_results("combined", {
+      {"gamma", {gamma_at_evaluation_}}, {"gamma_dot", {gamma_dot_results_}},
+      {"vd", {airspeed_sp_}}, {"k1", {path_k1_}}, {"k2", {path_k2_}},
+      {"position", values(p)}, {"velocity", values(v)}, {"pd", values(position_sp_)},
+      {"pdd", values(pdd)}, {"dpd_dgamma", values(dpd_results_)},
+      {"d2pd_dgamma2", values(d2pd_results_)}, {"ep", values(ep)}, {"ep_norm", {ep.norm()}},
+      {"attitude", values(attitude_measured_)}, {"desired_attitude", values(attitude_sp_)},
+      {"attitude_error", values(attitude_error)}, {"R", matrix_values(R)},
+      {"Rd", matrix_values(Rd)}, {"eR", values(eR)},
+      {"angular_velocity", values(omega_measured_)}, {"desired_body_rate", values(omega_sp_)},
+      {"attitude_ff_rate_raw", values(attitude_ff_rate_raw_)},
+      {"attitude_ff_rate_filtered", values(attitude_ff_rate_filtered_)},
+      {"yaw_ff_rate_raw", {attitude_ff_rate_raw_.z()}},
+      {"yaw_ff_rate_filtered", {attitude_ff_rate_filtered_.z()}},
+      {"attitude_ff_filter_tau", {attitude_ff_filter_tau_}},
+      {"body_rate_error", values(rate_error)}, {"guidance_direction", values(heading_sp_)},
+      {"curvature", {local_curvature_}}, {"speed", {v.norm()}},
+      {"speed_error", {airspeed_sp_ - v.norm()}}, {"altitude_error", {ep.z()}},
+      {"x_error_integral", {x_error_integral_}}, {"z_error_integral", {z_error_integral_}},
+      {"kpx", {kpx_}}, {"kix", {kix_}}, {"kpz", {kpz_}}, {"kiz", {kiz_}},
+      {"kdz", {kdz_}}, {"ka", {ka_}}, {"attitude_kp", values(attitude_kp_)},
+      {"rate_roll_gains", {gains.roll.kp, gains.roll.ki, gains.roll.kd}},
+      {"rate_pitch_gains", {gains.pitch.kp, gains.pitch.ki, gains.pitch.kd}},
+      {"rate_yaw_gains", {gains.yaw.kp, gains.yaw.ki, gains.yaw.kd}},
+      {"rate_gain_form", {gains.gain_form == RateController::GainForm::Parallel ? 0.0 : 1.0}},
+      {"rate_error_integral", values(debug.integral)},
+      {"rate_error_derivative", values(debug.derivative)},
+      {"torque_unsaturated", values(debug.torque_unsaturated_Nm)},
+      {"torque_saturated", values(debug.torque_saturated_Nm)},
+      {"force_setpoint", values(force_sp_)}, {"requested_wrench", values(requested_wrench)},
+      {"achieved_wrench", values(achieved_wrench_results_)}, {"wrench_error", values(wrench_error)},
+      {"requested_motor_thrust", values(requested_thrust_results_)},
+      {"T1", {motor_thrust_results_(0)}}, {"T2", {motor_thrust_results_(1)}},
+      {"T3", {motor_thrust_results_(2)}}, {"T4", {motor_thrust_results_(3)}},
+      {"Tf", {motor_thrust_results_(4)}},
+      {"T1max", {maxima(0)}}, {"T2max", {maxima(1)}}, {"T3max", {maxima(2)}},
+      {"T4max", {maxima(3)}}, {"Tfmax", {maxima(4)}},
+      {"motor_constants", values(motor_constants_)}, {"max_rot_velocities", values(max_rot_velocities_)},
+      {"mass", {mass_}}, {"shuttle_mass", {shuttle_mass_}}, {"fixed_wing_mass", {fixed_wing_mass_}},
+      {"attitude_rate_limits", values(attitude_rate_limits_)},
+      {"force_x_limits", {tx_min_, tx_max_}}, {"force_z_limits", {tz_min_, tz_max_}},
+      {"motor_limits", {motor_min_, motor_max_}},
+      {"lateral_acceleration_limits", {lateral_acceleration_min_, lateral_acceleration_max_}}
+    });
   }
 
   void CombinedVehicleController::set_path(const int type, const double* path) {
@@ -869,16 +962,14 @@ namespace autopilot {
       const Eigen::Vector3d& center = path_.lemniscate_c;
       const double sine = std::sin(gamma_);
       const double cosine = std::cos(gamma_);
-      const double denominator = 1.0 + sine * sine;
-      pd << center.x() + a * cosine / denominator,
-            center.y() + a * sine * cosine / denominator,
+      // Gerono lemniscate, matching Mellinger.
+      pd << center.x() + a * cosine,
+            center.y() + a * sine * cosine,
             center.z();
       dpd_dgamma = lemniscate_derivative(a, gamma_);
-      constexpr double derivative_step = 1e-4;
-      d2pd_dgamma2 =
-        (lemniscate_derivative(a, gamma_ + derivative_step) -
-         lemniscate_derivative(a, gamma_ - derivative_step)) /
-        (2.0 * derivative_step);
+      d2pd_dgamma2 << -a * std::cos(gamma_),
+                       -2.0 * a * std::sin(2.0 * gamma_),
+                        0.0;
     }
 
     const double path_derivative_norm = dpd_dgamma.norm();
@@ -914,6 +1005,10 @@ namespace autopilot {
       path_k1_ * va * tangent.dot(position_error) /
         (auxiliary_norm * path_derivative_norm) +
       va * path_k2_ / (auxiliary_norm * path_derivative_norm);
+    gamma_at_evaluation_ = gamma_;
+    gamma_dot_results_ = gamma_dot;
+    dpd_results_ = dpd_dgamma;
+    d2pd_results_ = d2pd_dgamma2;
     if (dt > 0.0 && std::isfinite(dt) && std::isfinite(gamma_dot)) {
       gamma_ += gamma_dot * dt;
     }
@@ -932,11 +1027,13 @@ namespace autopilot {
     omega_measured_.setZero();
     force_sp_.setZero();
     attitude_sp_.setZero();
+    attitude_ff_rate_raw_.setZero();
+    attitude_ff_rate_filtered_.setZero();
     previous_attitude_sp_.setZero();
+    have_previous_attitude_setpoint_ = false;
     attitude_measured_.setZero();
     have_rate_setpoint_ = false;
     have_attitude_setpoint_ = false;
-    have_previous_attitude_setpoint_ = false;
     have_attitude_ = false;
     have_angular_velocity_ = false;
     have_force_setpoint_ = false;
@@ -1170,6 +1267,7 @@ namespace autopilot {
     const Eigen::Matrix<double, 5, 1> achieved_wrench =
       effectiveness * (thrust_after_saturation - thrust_trim_);
     const Eigen::Matrix<double, 5, 1> wrench_error = u_phys - achieved_wrench;
+    requested_thrust_results_ = thrust_before_saturation;
 
     geometry_msgs::msg::WrenchStamped achieved_wrench_msg;
     achieved_wrench_msg.header.stamp = node_->get_clock()->now();
@@ -1202,6 +1300,16 @@ namespace autopilot {
     fixed_wing_motors_msg_.control[0] =
       static_cast<float>(std::clamp(actuator_commands(4), 0.0, motor_max_));
     fixed_wing_motors_pub_->publish(fixed_wing_motors_msg_);
+
+    // Record estimated thrust corresponding to the final sent commands,
+    // including motor_min/motor_max clipping beyond allocation saturation.
+    for (int i = 0; i < 5; ++i) {
+      const double command = i < 4 ? shuttle_motors_msg_.control[i] :
+                                    fixed_wing_motors_msg_.control[0];
+      const double maximum = motor_constants_(i) * std::pow(max_rot_velocities_(i), 2);
+      motor_thrust_results_(i) = maximum * std::pow(std::clamp(command, 0.0, 1.0), 2);
+    }
+    achieved_wrench_results_ = effectiveness * (motor_thrust_results_ - thrust_trim_);
 
     fixed_wing_servos_msg_.timestamp = now_us;
     fixed_wing_servos_msg_.timestamp_sample = now_us;

@@ -427,28 +427,15 @@ Visualization Manager:
         Depth: 10
     - Class: rviz_2d_plot_plugin/Plot2D
       Enabled: true
-      Name: Force Tracking
+      Name: Thrust
       Plot Mode: Time Series
       Series:
-        Series Count: 4
+        Series Count: 12
         Series 1:
           Value: true
-          Topic: /drone1/rviz_plots/forces/tx_reference
+          Topic: /drone1/rviz_plots/thrust/T
           Field: data
-          Label: Tx Reference
-          Unit: N
-          Color: 255; 170; 60
-          Line Width: 2
-          Line Alpha: 1
-          Line Style: Dash
-          Plot Style: Line
-          Value Scale: 1
-          Value Offset: 0
-        Series 2:
-          Value: true
-          Topic: /drone1/rviz_plots/forces/tx_achieved
-          Field: data
-          Label: Tx Achieved
+          Label: Saturated Thrust
           Unit: N
           Color: 80; 170; 255
           Line Width: 2
@@ -457,11 +444,115 @@ Visualization Manager:
           Plot Style: Line
           Value Scale: 1
           Value Offset: 0
+        Series 2:
+          Value: true
+          Topic: /drone1/rviz_plots/thrust/Tmax
+          Field: data
+          Label: Maximum Thrust
+          Unit: N
+          Color: 255; 170; 60
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Dash
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
         Series 3:
           Value: true
-          Topic: /drone1/rviz_plots/forces/tz_reference
+          Topic: /drone1/rviz_plots/thrust/T1
           Field: data
-          Label: Tz Reference
+          Label: T1
+          Unit: N
+          Color: 80; 170; 255
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 4:
+          Value: true
+          Topic: /drone1/rviz_plots/thrust/T2
+          Field: data
+          Label: T2
+          Unit: N
+          Color: 80; 220; 130
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 5:
+          Value: true
+          Topic: /drone1/rviz_plots/thrust/T3
+          Field: data
+          Label: T3
+          Unit: N
+          Color: 255; 120; 180
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 6:
+          Value: true
+          Topic: /drone1/rviz_plots/thrust/T4
+          Field: data
+          Label: T4
+          Unit: N
+          Color: 200; 120; 255
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 7:
+          Value: true
+          Topic: /drone1/rviz_plots/thrust/Tf
+          Field: data
+          Label: Tf
+          Unit: N
+          Color: 255; 170; 60
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 8:
+          Value: true
+          Topic: /drone1/rviz_plots/thrust/T1max
+          Field: data
+          Label: T1max
+          Unit: N
+          Color: 80; 170; 255
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Dash
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 9:
+          Value: true
+          Topic: /drone1/rviz_plots/thrust/T2max
+          Field: data
+          Label: T2max
+          Unit: N
+          Color: 80; 220; 130
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Dash
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 10:
+          Value: true
+          Topic: /drone1/rviz_plots/thrust/T3max
+          Field: data
+          Label: T3max
           Unit: N
           Color: 255; 120; 180
           Line Width: 2
@@ -470,16 +561,29 @@ Visualization Manager:
           Plot Style: Line
           Value Scale: 1
           Value Offset: 0
-        Series 4:
+        Series 11:
           Value: true
-          Topic: /drone1/rviz_plots/forces/tz_achieved
+          Topic: /drone1/rviz_plots/thrust/T4max
           Field: data
-          Label: Tz Achieved
+          Label: T4max
           Unit: N
-          Color: 80; 220; 130
+          Color: 200; 120; 255
           Line Width: 2
           Line Alpha: 1
-          Line Style: Solid
+          Line Style: Dash
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 12:
+          Value: true
+          Topic: /drone1/rviz_plots/thrust/Tfmax
+          Field: data
+          Label: Tfmax
+          Unit: N
+          Color: 255; 170; 60
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Dash
           Plot Style: Line
           Value Scale: 1
           Value Offset: 0
@@ -528,30 +632,30 @@ Visualization Manager:
         Depth: 10
     - Class: rviz_2d_plot_plugin/Plot2D
       Enabled: true
-      Name: Speed and Altitude Tracking
+      Name: Attitude Errors
       Plot Mode: Time Series
       Series:
-        Series Count: 5
+        Series Count: 3
         Series 1:
           Value: true
-          Topic: /drone1/rviz_plots/velocity/u_command
+          Topic: /drone1/rviz_plots/attitude_errors/roll
           Field: data
-          Label: Forward Speed Command
-          Unit: m/s
-          Color: 255; 170; 60
+          Label: Roll Error
+          Unit: rad
+          Color: 80; 170; 255
           Line Width: 2
           Line Alpha: 1
-          Line Style: Dash
+          Line Style: Solid
           Plot Style: Line
           Value Scale: 1
           Value Offset: 0
         Series 2:
           Value: true
-          Topic: /drone1/rviz_plots/velocity/u_measured
+          Topic: /drone1/rviz_plots/attitude_errors/pitch
           Field: data
-          Label: Speed Norm Measured
-          Unit: m/s
-          Color: 80; 170; 255
+          Label: Pitch Error
+          Unit: rad
+          Color: 255; 170; 60
           Line Width: 2
           Line Alpha: 1
           Line Style: Solid
@@ -560,40 +664,14 @@ Visualization Manager:
           Value Offset: 0
         Series 3:
           Value: true
-          Topic: /drone1/rviz_plots/altitude/z_reference
+          Topic: /drone1/rviz_plots/attitude_errors/yaw
           Field: data
-          Label: NED Z Reference
-          Unit: m
-          Color: 255; 120; 180
-          Line Width: 2
-          Line Alpha: 1
-          Line Style: Dash
-          Plot Style: Line
-          Value Scale: 1
-          Value Offset: 0
-        Series 4:
-          Value: true
-          Topic: /drone1/rviz_plots/altitude/z_measured
-          Field: data
-          Label: NED Z Measured
-          Unit: m
+          Label: Yaw / Heading Error
+          Unit: rad
           Color: 80; 220; 130
           Line Width: 2
           Line Alpha: 1
           Line Style: Solid
-          Plot Style: Line
-          Value Scale: 1
-          Value Offset: 0
-        Series 5:
-          Value: true
-          Topic: /drone1/rviz_plots/altitude/z_error
-          Field: data
-          Label: NED Z Error
-          Unit: m
-          Color: 200; 120; 255
-          Line Width: 2
-          Line Alpha: 1
-          Line Style: Dot
           Plot Style: Line
           Value Scale: 1
           Value Offset: 0
@@ -623,11 +701,138 @@ Visualization Manager:
         X Offset: 4
         Y Offset: 4
       Layout:
-        Width: 570
-        Height: 270
+        Width: 470
+        Height: 240
         X Offset: 10
         Y Offset: 10
-        Horizontal Alignment: Center
+        Horizontal Alignment: Right
+        Vertical Alignment: Bottom
+      Style:
+        Background Color: 0; 0; 0
+        Background Alpha: 0.74
+        Axis Color: 230; 230; 230
+        Grid Color: 130; 130; 130
+        Text Color: 245; 245; 245
+        Font Size: 8
+      QoS:
+        Reliability: Reliable
+        Durability: Volatile
+        Depth: 10
+    - Class: rviz_2d_plot_plugin/Plot2D
+      Enabled: true
+      Name: Body Rates
+      Plot Mode: Time Series
+      Series:
+        Series Count: 6
+        Series 1:
+          Value: true
+          Topic: /drone1/rviz_plots/body_rates/measured/roll
+          Field: data
+          Label: Roll Measured
+          Unit: rad/s
+          Color: 80; 170; 255
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 2:
+          Value: true
+          Topic: /drone1/rviz_plots/body_rates/desired/roll
+          Field: data
+          Label: Roll Desired
+          Unit: rad/s
+          Color: 80; 170; 255
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Dash
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 3:
+          Value: true
+          Topic: /drone1/rviz_plots/body_rates/measured/pitch
+          Field: data
+          Label: Pitch Measured
+          Unit: rad/s
+          Color: 255; 170; 60
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 4:
+          Value: true
+          Topic: /drone1/rviz_plots/body_rates/desired/pitch
+          Field: data
+          Label: Pitch Desired
+          Unit: rad/s
+          Color: 255; 170; 60
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Dash
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 5:
+          Value: true
+          Topic: /drone1/rviz_plots/body_rates/measured/yaw
+          Field: data
+          Label: Yaw Measured
+          Unit: rad/s
+          Color: 80; 220; 130
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 6:
+          Value: true
+          Topic: /drone1/rviz_plots/body_rates/desired/yaw
+          Field: data
+          Label: Yaw Desired
+          Unit: rad/s
+          Color: 80; 220; 130
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Dash
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+      Time:
+        Time Source: Receive Time
+        Window Seconds: 60
+        Refresh Rate: 20
+      Y Axis:
+        Auto Scale: true
+        Y Min: -1
+        Y Max: 1
+      References:
+        Reference Count: 1
+        Reference 1:
+          Value: true
+          Y Value: 0
+          Tolerance: 0
+          Label: Zero
+          Color: 180; 180; 180
+          Alpha: 0.65
+          Line Width: 1
+          Line Style: Dot
+      Legend:
+        Enabled: true
+        Show Values: true
+        Position: Top Right
+        X Offset: 4
+        Y Offset: 4
+      Layout:
+        Width: 470
+        Height: 240
+        X Offset: 10
+        Y Offset: 270
+        Horizontal Alignment: Right
         Vertical Alignment: Bottom
       Style:
         Background Color: 0; 0; 0

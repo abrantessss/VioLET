@@ -7,8 +7,91 @@ from geometry_msgs.msg import PointStamped, PoseStamped, Quaternion, Vector3Stam
 from nav_msgs.msg import Path
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, Float64MultiArray
 from violet_msgs.msg import PlotData
+
+
+THRUST_LABELS = ('T', 'Tmax', 'T1', 'T2', 'T3', 'T4', 'Tf',
+                 'T1max', 'T2max', 'T3max', 'T4max', 'Tfmax')
+
+
+def _thrust_values(msg):
+    """Decode labelled scalar thrust blocks without relying on their order."""
+    values = {}
+    offset = int(msg.layout.data_offset)
+    for dim in msg.layout.dim:
+        size = int(dim.size)
+        if offset + size > len(msg.data):
+            return {}  # Incomplete packet: avoid publishing mismatched values.
+        if dim.label in THRUST_LABELS and size == 1:
+            value = float(msg.data[offset])
+            if math.isfinite(value):
+                values[f'thrust/{dim.label}'] = value
+        offset += size
+    return values
+
+
+ATTITUDE_ERROR_KEYS = ('attitude_errors/roll', 'attitude_errors/pitch',
+                       'attitude_errors/yaw')
+
+
+BODY_RATE_KEYS = tuple(f'body_rates/{kind}/{axis}'
+                       for kind in ('desired', 'measured')
+                       for axis in ('roll', 'pitch', 'yaw'))
+
+
+def _body_rate_values(msg):
+    """Decode the controller's desired and measured body rates in rad/s."""
+    values = {}
+    offset = int(msg.layout.data_offset)
+    labels = {'desired_body_rate': 'desired', 'angular_velocity': 'measured'}
+    for dim in msg.layout.dim:
+        count = int(dim.size)
+        if offset + count > len(msg.data):
+            return {}
+        if dim.label in labels and count == 3:
+            for axis, value in zip(('roll', 'pitch', 'yaw'), msg.data[offset:offset + count]):
+                if math.isfinite(value):
+                    values[f'body_rates/{labels[dim.label]}/{axis}'] = float(value)
+        offset += count
+    return values
+
+
+def _attitude_error_values(msg):
+    """Return wrapped Euler tracking errors, with LOS4 guidance heading as yaw."""
+    blocks = {}
+    offset = int(msg.layout.data_offset)
+    for dim in msg.layout.dim:
+        count = int(dim.size)
+        if offset + count > len(msg.data):
+            return {}
+        blocks[dim.label] = [float(v) for v in msg.data[offset:offset + count]]
+        offset += count
+
+    errors = blocks.get('attitude_error', [])
+    if len(errors) != 3:
+        errors = blocks.get('attitude_error_roll_pitch', [])
+        if len(errors) == 2:
+            heading_error = blocks.get('heading_error', [])
+            if len(heading_error) == 1:
+                errors = errors + heading_error
+        else:
+            R = blocks.get('R', [])
+            Rd = blocks.get('Rd', [])
+            if len(R) != 9 or len(Rd) != 9:
+                return {}
+            if not all(math.isfinite(v) for v in R + Rd):
+                return {}
+
+            def angles(matrix):
+                # Row-major ZYX rotation; stable pitch extraction near +/- pi/2.
+                return (math.atan2(matrix[7], matrix[8]),
+                        math.atan2(-matrix[6], math.hypot(matrix[7], matrix[8])),
+                        math.atan2(matrix[3], matrix[0]))
+
+            errors = [desired - measured for desired, measured in zip(angles(Rd), angles(R))]
+    return {key: math.atan2(math.sin(value), math.cos(value))
+            for key, value in zip(ATTITUDE_ERROR_KEYS, errors) if math.isfinite(value)}
 
 
 def _norm3(values):
@@ -37,6 +120,7 @@ class PlotBridge(Node):
 
         self.declare_parameter('vehicle_ns', 'drone1')
         self.declare_parameter('plot_data_topic', '')
+        self.declare_parameter('controller_results_topic', '')
         self.declare_parameter('output_prefix', 'rviz_plots')
         self.declare_parameter('history_length', 2000)
         self.declare_parameter('publish_paths', True)
@@ -53,6 +137,9 @@ class PlotBridge(Node):
         plot_data_topic = self.get_parameter('plot_data_topic').value
         if not plot_data_topic:
             plot_data_topic = f'/{vehicle_ns}/plots/data'
+        controller_results_topic = self.get_parameter('controller_results_topic').value
+        if not controller_results_topic:
+            controller_results_topic = f'/{vehicle_ns}/fmu/telemetry/controller_results'
         attitude_reference_topic = self.get_parameter('attitude_reference_topic').value
         force_reference_topic = self.get_parameter('force_reference_topic').value
         force_achieved_topic = self.get_parameter('force_achieved_topic').value
@@ -142,6 +229,17 @@ class PlotBridge(Node):
                 Float32, f'{self.base_topic}/altitude/z_error', 10),
         }
 
+        for label in THRUST_LABELS:
+            key = f'thrust/{label}'
+            self.latest_tracking_values[key] = math.nan
+            self.scalar_publishers[key] = self.create_publisher(
+                Float32, f'{self.base_topic}/{key}', 10)
+
+        for key in ATTITUDE_ERROR_KEYS + BODY_RATE_KEYS:
+            self.latest_tracking_values[key] = math.nan
+            self.scalar_publishers[key] = self.create_publisher(
+                Float32, f'{self.base_topic}/{key}', 10)
+
         self.position_pub = self.create_publisher(
             PointStamped, f'{self.base_topic}/position', 10)
         self.desired_position_pub = self.create_publisher(
@@ -160,6 +258,8 @@ class PlotBridge(Node):
             durability=DurabilityPolicy.VOLATILE,
         )
         self.create_subscription(PlotData, plot_data_topic, self.plot_data_cb, plot_data_qos)
+        self.create_subscription(Float64MultiArray, controller_results_topic,
+                                 self.controller_results_cb, plot_data_qos)
         self.create_subscription(
             Vector3Stamped,
             attitude_reference_topic,
@@ -242,6 +342,16 @@ class PlotBridge(Node):
             self.path_pub.publish(self._path_msg(stamp, frame_id, self.path_history))
             self.desired_path_pub.publish(
                 self._path_msg(stamp, frame_id, self.desired_path_history))
+
+    def controller_results_cb(self, msg):
+        # Clear absent fields so switching controllers cannot repeat stale thrust.
+        for label in THRUST_LABELS:
+            self.latest_tracking_values[f'thrust/{label}'] = math.nan
+        self.latest_tracking_values.update(_thrust_values(msg))
+        for key in ATTITUDE_ERROR_KEYS + BODY_RATE_KEYS:
+            self.latest_tracking_values[key] = math.nan
+        self.latest_tracking_values.update(_attitude_error_values(msg))
+        self.latest_tracking_values.update(_body_rate_values(msg))
 
     def attitude_reference_cb(self, msg):
         yaw_command = float(msg.vector.z)

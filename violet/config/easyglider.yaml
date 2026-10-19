@@ -59,6 +59,7 @@
           lateral: "fmu/in/fixed_wing_lateral_setpoint"
           longitudinal: "fmu/in/fixed_wing_longitudinal_setpoint"
       los4controller:
+        attitude_ff_filter_tau: 0.5  # roll/pitch feedforward rate low-pass time constant [s]
         m: 1.48  # kg
         Tmax: 104.720105  # N; Gazebo motorConstant * maxRotVelocity^2
         gains:
@@ -68,7 +69,7 @@
           kiE: 0.005
           kpB: 0.002
           kiB: 0.00001
-          ka: 6.0
+          ka: 10.0
           kphi: 10.0
           ktheta: 10.0
         limits:
@@ -76,7 +77,7 @@
           throttle_max: 1.0
           pitch_min: -0.52
           pitch_max: 0.52
-          lateral_acceleration_min: -6.0
-          lateral_acceleration_max: 6.0
+          lateral_acceleration_min: -10.0
+          lateral_acceleration_max: 10.0
         publishers:
           setpoint: "fmu/in/vehicle_rates_setpoint"

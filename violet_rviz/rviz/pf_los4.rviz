@@ -1,0 +1,934 @@
+Panels:
+- Class: rviz_common/Displays
+  Help Height: 78
+  Name: Displays
+  Property Tree Widget:
+    Expanded:
+    - /Global Options1
+    - /Current Position Ball1
+    Splitter Ratio: 0.5
+  Tree Height: 540
+Visualization Manager:
+  Class: ''
+  Displays:
+  - Alpha: 0.5
+    Cell Size: 5
+    Class: rviz_default_plugins/Grid
+    Color: 160; 160; 164
+    Enabled: true
+    Line Style:
+      Line Width: 0.03
+      Value: Lines
+    Name: Grid
+    Normal Cell Count: 0
+    Plane: XY
+    Plane Cell Count: 40
+    Reference Frame: <Fixed Frame>
+    Value: true
+  - Class: rviz_common/Group
+    Displays:
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 255; 165; 0
+      Enabled: true
+      Head Diameter: 0.3
+      Head Length: 0.2
+      Length: 0.3
+      Line Style: Lines
+      Line Width: 0.1
+      Name: Travelled Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 0
+      Pose Style: None
+      Radius: 0.03
+      Shaft Diameter: 0.1
+      Shaft Length: 0.1
+      Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /drone1/rviz_plots/path
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 31; 119; 180
+      Enabled: true
+      Head Diameter: 0.3
+      Head Length: 0.2
+      Length: 0.3
+      Line Style: Lines
+      Line Width: 0.1
+      Name: Desired Path (when available)
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 31; 119; 180
+      Pose Style: None
+      Radius: 0.03
+      Shaft Diameter: 0.1
+      Shaft Length: 0.1
+      Topic:
+        Depth: 10
+        Durability Policy: Transient Local
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /drone1/rviz_plots/desired_path
+      Value: true
+    Enabled: true
+    Name: Vehicle Trajectory
+  - Class: rviz_default_plugins/Image
+    Name: Pi Camera
+    Enabled: true
+    Normalize Range: true
+    Topic:
+      Value: /drone1/telemetry/camera/image_raw
+      Depth: 1
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+    Value: true
+  - Class: rviz_default_plugins/Axes
+    Name: NED World Axes (X North, Y East, Z Down)
+    Enabled: true
+    Reference Frame: map_ned
+    Length: 2
+    Radius: 0.04
+    Value: true
+  - Class: rviz_default_plugins/Marker
+    Name: UAV Mode, Armed and Kill Status
+    Enabled: true
+    Topic:
+      Value: /drone1/rviz_plots/vehicle_mode
+      Depth: 10
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+    Namespaces:
+      vehicle_mode: true
+  - Class: rviz_default_plugins/Marker
+    Name: Gamma Position on Desired Path
+    Enabled: true
+    Topic:
+      Value: /drone1/rviz_plots/gamma_position
+      Depth: 10
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+    Namespaces:
+      gamma_position: true
+  - Class: rviz_default_plugins/Marker
+    Name: Current Position Ball
+    Enabled: true
+    Topic:
+      Value: /drone1/rviz_plots/current_position
+      Depth: 10
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+    Namespaces:
+      current_position: true
+  - Class: rviz_default_plugins/Pose
+    Name: Vehicle Orientation
+    Enabled: true
+    Shape: Axes
+    Axes Length: 1.0
+    Axes Radius: 0.08
+    Topic:
+      Value: /drone1/rviz_plots/pose
+      Depth: 10
+      Durability Policy: Volatile
+      History Policy: Keep Last
+      Reliability Policy: Reliable
+  - Class: rviz_2d_plot_plugin/Plot2D
+    Enabled: true
+    Name: XY Path
+    Plot Mode: XY
+    Series:
+      Series Count: 3
+      Series 1:
+        Value: true
+        Topic: /drone1/rviz_plots/position
+        X Field: point/x
+        Y Field: point/y
+        Field: point/y
+        Label: Vehicle Path
+        Unit: m
+        Color: 255; 165; 0
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 2:
+        Value: true
+        Topic: /drone1/rviz_plots/desired_path
+        X Field: poses/pose/position/x
+        Y Field: poses/pose/position/y
+        Field: poses/pose/position/y
+        Label: Full Desired Path
+        Unit: m
+        Color: 31; 119; 180
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Dash
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 3:
+        Value: true
+        Topic: /drone1/rviz_plots/gamma_xy
+        X Field: poses/pose/position/x
+        Y Field: poses/pose/position/y
+        Field: poses/pose/position/y
+        Label: Gamma Position
+        Unit: m
+        Color: 25; 230; 240
+        Line Width: 5
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Points
+        Value Scale: 1
+        Value Offset: 0
+    Time:
+      Time Source: Message Header Stamp
+      Window Seconds: 60
+      XY History Mode: All Samples
+      Refresh Rate: 20
+    X Axis:
+      Auto Scale: true
+      X Min: -1
+      X Max: 1
+      Axis Scale: '1:1'
+    Y Axis:
+      Auto Scale: true
+      Y Min: -1
+      Y Max: 1
+    Grid:
+      Major Grid: true
+      Minor Grid: true
+      X Major Ticks: 6
+      Y Major Ticks: 5
+      Minor Divisions: 1
+    References:
+      Reference Count: 0
+    Legend:
+      Enabled: true
+      Show Values: false
+      Position: Top Left
+      X Offset: 4
+      Y Offset: 4
+    Layout:
+      Width: 460
+      Height: 280
+      X Offset: 10
+      Y Offset: 10
+      Horizontal Alignment: Left
+      Vertical Alignment: Bottom
+    Style:
+      Background Color: 0; 0; 0
+      Background Alpha: 0.74
+      Axis Color: 230; 230; 230
+      Grid Color: 130; 130; 130
+      Text Color: 245; 245; 245
+      Font Size: 8
+    QoS:
+      Reliability: Reliable
+      Durability: Volatile
+      Depth: 10
+  - Class: rviz_2d_plot_plugin/Plot2D
+    Enabled: true
+    Name: Vehicle Velocity
+    Plot Mode: Time Series
+    Series:
+      Series Count: 6
+      Series 1:
+        Value: true
+        Topic: /drone1/rviz_plots/velocity/speed
+        Field: data
+        Label: Speed
+        Unit: m/s
+        Color: 80; 170; 255
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 2:
+        Value: true
+        Topic: /drone1/rviz_plots/velocity/east
+        Field: data
+        Label: East
+        Unit: m/s
+        Color: 255; 170; 60
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 3:
+        Value: true
+        Topic: /drone1/rviz_plots/velocity/north
+        Field: data
+        Label: North
+        Unit: m/s
+        Color: 80; 220; 130
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 4:
+        Value: true
+        Topic: /drone1/rviz_plots/velocity/down
+        Field: data
+        Label: Down
+        Unit: m/s
+        Color: 210; 130; 255
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 5:
+        Value: true
+        Topic: /drone1/rviz_plots/velocity/desired
+        Field: data
+        Label: Desired Speed vd
+        Unit: m/s
+        Color: 255; 230; 60
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Dash
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 6:
+        Value: true
+        Topic: /drone1/rviz_plots/velocity/gamma_speed
+        Field: data
+        Label: Gamma Target Speed
+        Unit: m/s
+        Color: 25; 230; 240
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Dash
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+    Time:
+      Time Source: Receive Time
+      Window Seconds: 60
+      Refresh Rate: 20
+    Y Axis:
+      Auto Scale: true
+      Y Min: -1
+      Y Max: 1
+    References:
+      Reference Count: 0
+    Legend:
+      Enabled: true
+      Show Values: true
+      Position: Top Right
+      X Offset: 4
+      Y Offset: 4
+    Layout:
+      Width: 430
+      Height: 190
+      X Offset: 10
+      Y Offset: 10
+      Horizontal Alignment: Right
+      Vertical Alignment: Top
+    Style:
+      Background Color: 0; 0; 0
+      Background Alpha: 0.74
+      Axis Color: 230; 230; 230
+      Grid Color: 130; 130; 130
+      Text Color: 245; 245; 245
+      Font Size: 8
+    QoS:
+      Reliability: Reliable
+      Durability: Volatile
+      Depth: 10
+  - Class: rviz_2d_plot_plugin/Plot2D
+    Enabled: true
+    Name: Attitude and Desired References
+    Plot Mode: Time Series
+    Series:
+      Series Count: 6
+      Series 1:
+        Value: true
+        Topic: /drone1/rviz_plots/attitude/roll
+        Field: data
+        Label: Roll
+        Unit: rad
+        Color: 80; 170; 255
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 2:
+        Value: true
+        Topic: /drone1/rviz_plots/attitude/pitch
+        Field: data
+        Label: Pitch
+        Unit: rad
+        Color: 255; 170; 60
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 3:
+        Value: true
+        Topic: /drone1/rviz_plots/attitude/yaw
+        Field: data
+        Label: Yaw
+        Unit: rad
+        Color: 80; 220; 130
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 4:
+        Value: true
+        Topic: /drone1/rviz_plots/attitude_desired/roll
+        Field: data
+        Label: Desired Roll
+        Unit: rad
+        Color: 80; 170; 255
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Dash
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 5:
+        Value: true
+        Topic: /drone1/rviz_plots/attitude_desired/pitch
+        Field: data
+        Label: Desired Pitch
+        Unit: rad
+        Color: 255; 170; 60
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Dash
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 6:
+        Value: true
+        Topic: /drone1/rviz_plots/attitude_desired/heading
+        Field: data
+        Label: Guidance Heading
+        Unit: rad
+        Color: 80; 220; 130
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Dash
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+    Time:
+      Time Source: Receive Time
+      Window Seconds: 60
+      Refresh Rate: 20
+    Y Axis:
+      Auto Scale: true
+      Y Min: -1
+      Y Max: 1
+    References:
+      Reference Count: 0
+    Legend:
+      Enabled: true
+      Show Values: true
+      Position: Top Right
+      X Offset: 4
+      Y Offset: 4
+    Layout:
+      Width: 430
+      Height: 230
+      X Offset: 10
+      Y Offset: 210
+      Horizontal Alignment: Right
+      Vertical Alignment: Top
+    Style:
+      Background Color: 0; 0; 0
+      Background Alpha: 0.74
+      Axis Color: 230; 230; 230
+      Grid Color: 130; 130; 130
+      Text Color: 245; 245; 245
+      Font Size: 8
+    QoS:
+      Reliability: Reliable
+      Durability: Volatile
+      Depth: 10
+  - Class: rviz_2d_plot_plugin/Plot2D
+    Enabled: true
+    Name: Actuator Outputs
+    Plot Mode: Time Series
+    Series:
+      Series Count: 5
+      Series 1:
+        Value: true
+        Topic: /drone1/rviz_plots/actuators/motor
+        Field: data
+        Label: Motor (MAIN 8)
+        Unit: normalized
+        Color: 80; 170; 255
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 2:
+        Value: true
+        Topic: /drone1/rviz_plots/actuators/elevator
+        Field: data
+        Label: Elevator (MAIN 4)
+        Unit: normalized
+        Color: 255; 170; 60
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 3:
+        Value: true
+        Topic: /drone1/rviz_plots/actuators/rudder
+        Field: data
+        Label: Rudder (MAIN 3)
+        Unit: normalized
+        Color: 80; 220; 130
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 4:
+        Value: true
+        Topic: /drone1/rviz_plots/actuators/right_aileron
+        Field: data
+        Label: Right Aileron (MAIN 2)
+        Unit: normalized
+        Color: 210; 130; 255
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 5:
+        Value: true
+        Topic: /drone1/rviz_plots/actuators/left_aileron
+        Field: data
+        Label: Left Aileron (MAIN 1)
+        Unit: normalized
+        Color: 255; 100; 100
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+    Time:
+      Time Source: Receive Time
+      Window Seconds: 60
+      Refresh Rate: 20
+    Y Axis:
+      Auto Scale: false
+      Y Min: -1
+      Y Max: 1
+    References:
+      Reference Count: 0
+    Legend:
+      Enabled: true
+      Show Values: true
+      Position: Top Right
+      X Offset: 4
+      Y Offset: 4
+    Layout:
+      Width: 430
+      Height: 190
+      X Offset: 10
+      Y Offset: 450
+      Horizontal Alignment: Right
+      Vertical Alignment: Top
+    Style:
+      Background Color: 0; 0; 0
+      Background Alpha: 0.74
+      Axis Color: 230; 230; 230
+      Grid Color: 130; 130; 130
+      Text Color: 245; 245; 245
+      Font Size: 8
+    QoS:
+      Reliability: Reliable
+      Durability: Volatile
+      Depth: 10
+  - Class: rviz_2d_plot_plugin/Plot2D
+    Enabled: false
+    Name: Actuator Control Targets
+    Plot Mode: Time Series
+    Series:
+      Series Count: 8
+      Series 1:
+        Value: true
+        Topic: /drone1/rviz_plots/actuators/control_0
+        Field: data
+        Label: Control 0
+        Unit: normalized
+        Color: 80; 170; 255
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 2:
+        Value: true
+        Topic: /drone1/rviz_plots/actuators/control_1
+        Field: data
+        Label: Control 1
+        Unit: normalized
+        Color: 255; 170; 60
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 3:
+        Value: true
+        Topic: /drone1/rviz_plots/actuators/control_2
+        Field: data
+        Label: Control 2
+        Unit: normalized
+        Color: 80; 220; 130
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 4:
+        Value: true
+        Topic: /drone1/rviz_plots/actuators/control_3
+        Field: data
+        Label: Control 3
+        Unit: normalized
+        Color: 210; 130; 255
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 5:
+        Value: true
+        Topic: /drone1/rviz_plots/actuators/control_4
+        Field: data
+        Label: Control 4
+        Unit: normalized
+        Color: 255; 120; 180
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 6:
+        Value: true
+        Topic: /drone1/rviz_plots/actuators/control_5
+        Field: data
+        Label: Control 5
+        Unit: normalized
+        Color: 180; 210; 80
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 7:
+        Value: true
+        Topic: /drone1/rviz_plots/actuators/control_6
+        Field: data
+        Label: Control 6
+        Unit: normalized
+        Color: 170; 170; 170
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 8:
+        Value: true
+        Topic: /drone1/rviz_plots/actuators/control_7
+        Field: data
+        Label: Control 7
+        Unit: normalized
+        Color: 100; 210; 220
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+    Time:
+      Time Source: Receive Time
+      Window Seconds: 60
+      Refresh Rate: 20
+    Y Axis:
+      Auto Scale: true
+      Y Min: -1
+      Y Max: 1
+    References:
+      Reference Count: 0
+    Legend:
+      Enabled: true
+      Show Values: true
+      Position: Top Right
+      X Offset: 4
+      Y Offset: 4
+    Layout:
+      Width: 430
+      Height: 190
+      X Offset: 10
+      Y Offset: 410
+      Horizontal Alignment: Right
+      Vertical Alignment: Top
+    Style:
+      Background Color: 0; 0; 0
+      Background Alpha: 0.74
+      Axis Color: 230; 230; 230
+      Grid Color: 130; 130; 130
+      Text Color: 245; 245; 245
+      Font Size: 8
+    QoS:
+      Reliability: Reliable
+      Durability: Volatile
+      Depth: 10
+  - Class: rviz_2d_plot_plugin/Plot2D
+    Enabled: true
+    Name: Path Tracking Error
+    Plot Mode: Time Series
+    Series:
+      Series Count: 4
+      Series 1:
+        Value: true
+        Topic: /drone1/rviz_plots/path_error/norm
+        Field: data
+        Label: Norm p-pd
+        Unit: m
+        Color: 80; 170; 255
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 2:
+        Value: true
+        Topic: /drone1/rviz_plots/path_error/north
+        Field: data
+        Label: North Error
+        Unit: m
+        Color: 255; 170; 60
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 3:
+        Value: true
+        Topic: /drone1/rviz_plots/path_error/east
+        Field: data
+        Label: East Error
+        Unit: m
+        Color: 80; 220; 130
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 4:
+        Value: true
+        Topic: /drone1/rviz_plots/path_error/down
+        Field: data
+        Label: Down Error
+        Unit: m
+        Color: 210; 130; 255
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+    Time:
+      Time Source: Receive Time
+      Window Seconds: 60
+      Refresh Rate: 20
+    Y Axis:
+      Auto Scale: true
+      Y Min: -1
+      Y Max: 1
+    References:
+      Reference Count: 0
+    Legend:
+      Enabled: true
+      Show Values: true
+      Position: Top Right
+      X Offset: 4
+      Y Offset: 4
+    Layout:
+      Width: 430
+      Height: 190
+      X Offset: 10
+      Y Offset: 210
+      Horizontal Alignment: Left
+      Vertical Alignment: Top
+    Style:
+      Background Color: 0; 0; 0
+      Background Alpha: 0.74
+      Axis Color: 230; 230; 230
+      Grid Color: 130; 130; 130
+      Text Color: 245; 245; 245
+      Font Size: 8
+    QoS:
+      Reliability: Reliable
+      Durability: Volatile
+      Depth: 10
+  - Class: rviz_2d_plot_plugin/Plot2D
+    Enabled: true
+    Name: Attitude Errors
+    Plot Mode: Time Series
+    Series:
+      Series Count: 3
+      Series 1:
+        Value: true
+        Topic: /drone1/rviz_plots/attitude_error/roll
+        Field: data
+        Label: Roll Error
+        Unit: rad
+        Color: 80; 170; 255
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 2:
+        Value: true
+        Topic: /drone1/rviz_plots/attitude_error/pitch
+        Field: data
+        Label: Pitch Error
+        Unit: rad
+        Color: 255; 170; 60
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 3:
+        Value: true
+        Topic: /drone1/rviz_plots/attitude_error/heading
+        Field: data
+        Label: Heading - Yaw
+        Unit: rad
+        Color: 80; 220; 130
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+    Time:
+      Time Source: Receive Time
+      Window Seconds: 60
+      Refresh Rate: 20
+    Y Axis:
+      Auto Scale: true
+      Y Min: -1
+      Y Max: 1
+    References:
+      Reference Count: 0
+    Legend:
+      Enabled: true
+      Show Values: true
+      Position: Top Right
+      X Offset: 4
+      Y Offset: 4
+    Layout:
+      Width: 430
+      Height: 190
+      X Offset: 10
+      Y Offset: 10
+      Horizontal Alignment: Left
+      Vertical Alignment: Top
+    Style:
+      Background Color: 0; 0; 0
+      Background Alpha: 0.74
+      Axis Color: 230; 230; 230
+      Grid Color: 130; 130; 130
+      Text Color: 245; 245; 245
+      Font Size: 8
+    QoS:
+      Reliability: Reliable
+      Durability: Volatile
+      Depth: 10
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: rviz_world
+    Frame Rate: 30
+  Name: root
+  Tools:
+  - Class: rviz_default_plugins/Interact
+    Hide Inactive Objects: true
+  - Class: rviz_default_plugins/MoveCamera
+  - Class: rviz_default_plugins/Select
+  Transformation:
+    Current:
+      Class: rviz_default_plugins/TF
+  Value: true
+Views:
+  Current:
+    Class: rviz_default_plugins/Orbit
+    Distance: 35
+    Focal Point:
+      X: 0
+      Y: 0
+      Z: 0
+    Name: Current View
+    Pitch: 0.6
+    Target Frame: <Fixed Frame>
+    Yaw: 0.8
+  Saved: null
+Window Geometry:
+  Height: 1000
+  Width: 1800

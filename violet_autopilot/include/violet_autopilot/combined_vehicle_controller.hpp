@@ -43,6 +43,7 @@ namespace autopilot {
       void update_rate_controller(double dt);
       void publish_wrench(const Eigen::Vector3d& torque_sp_Nm, const Eigen::Vector3d& force_sp_N);
       void publish_actuators();
+      void publish_results(const Eigen::Vector3d& p, const Eigen::Vector3d& v);
       void publish_offboard_heartbeat();
       void publish_offboard_mode();
       void publish_offboard_request(
@@ -104,8 +105,12 @@ namespace autopilot {
       RateController rate_controller_;
       Eigen::Vector3d attitude_kp_{Eigen::Vector3d::Ones()};
       Eigen::Vector3d attitude_rate_limits_{Eigen::Vector3d::Ones()};
-      Eigen::Vector3d attitude_sp_{Eigen::Vector3d::Zero()};
+      double attitude_ff_filter_tau_{0.2};
+      Eigen::Vector3d attitude_ff_rate_raw_{Eigen::Vector3d::Zero()};
+      Eigen::Vector3d attitude_ff_rate_filtered_{Eigen::Vector3d::Zero()};
       Eigen::Vector3d previous_attitude_sp_{Eigen::Vector3d::Zero()};
+      bool have_previous_attitude_setpoint_{false};
+      Eigen::Vector3d attitude_sp_{Eigen::Vector3d::Zero()};
       Eigen::Vector3d attitude_measured_{Eigen::Vector3d::Zero()};
       Eigen::Vector3d omega_sp_{Eigen::Vector3d::Zero()};
       Eigen::Vector3d omega_measured_{Eigen::Vector3d::Zero()};
@@ -140,11 +145,17 @@ namespace autopilot {
       double lateral_acceleration_max_{4.0};
       Eigen::Vector3d inertial_velocity_debug_{Eigen::Vector3d::Zero()};
       double gamma_{0.0};
+      double gamma_at_evaluation_{0.0};
+      double gamma_dot_results_{0.0};
+      Eigen::Vector3d dpd_results_{Eigen::Vector3d::Zero()};
+      Eigen::Vector3d d2pd_results_{Eigen::Vector3d::Zero()};
+      Eigen::Matrix<double, 5, 1> motor_thrust_results_{Eigen::Matrix<double, 5, 1>::Zero()};
+      Eigen::Matrix<double, 5, 1> requested_thrust_results_{Eigen::Matrix<double, 5, 1>::Zero()};
+      Eigen::Matrix<double, 5, 1> achieved_wrench_results_{Eigen::Matrix<double, 5, 1>::Zero()};
       double path_k1_{1.0};
       double path_k2_{1.0};
       bool have_rate_setpoint_{false};
       bool have_attitude_setpoint_{false};
-      bool have_previous_attitude_setpoint_{false};
       bool have_attitude_{false};
       bool have_angular_velocity_{false};
       bool have_force_setpoint_{false};

@@ -5,6 +5,12 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
+from functools import partial
+from geometry_msgs.msg import Vector3Stamped, WrenchStamped
+from std_msgs.msg import Float64MultiArray
+from px4_msgs.msg import ActuatorMotors, ActuatorServos
+from violet_scripts.mission_bag import MissionBag, default_bag_directory
+
 from violet_msgs.msg import AutopilotPlot, Mode, PlotData, State, Trajectory
 
 
@@ -13,11 +19,14 @@ class CombinedVehicleMissionNode(Node):
         super().__init__(node_name)
 
         self.mission_label = mission_label
+        self.declare_parameter('record_bag', True)
+        self.declare_parameter('bag_directory', '')
+        self.bag = None
         self.declare_parameter('shuttle_ns', 'drone1')
         self.declare_parameter('fixed_wing_ns', 'drone2')
         self.declare_parameter('arm_seconds', 2.0)
         self.declare_parameter('prime_seconds', 3.0)
-        self.declare_parameter('mission_seconds', 240.0)
+        self.declare_parameter('mission_seconds', 73.0)
         self.shuttle_ns = self.get_parameter('shuttle_ns').value.strip('/')
         self.fixed_wing_ns = self.get_parameter('fixed_wing_ns').value.strip('/')
         self.arm_seconds = float(self.get_parameter('arm_seconds').value)
@@ -49,6 +58,23 @@ class CombinedVehicleMissionNode(Node):
             qos_profile_sensor_data,
         )
 
+        # Record both vehicles and the combined controller diagnostics.
+        topics = [
+            (Float64MultiArray, f'{shuttle_prefix}/fmu/telemetry/controller_results'),
+            (State, f'/{self.fixed_wing_ns}/fmu/telemetry/state'),
+            (ActuatorMotors, f'{shuttle_prefix}/fmu/in/actuator_motors'),
+            (ActuatorMotors, f'/{self.fixed_wing_ns}/fmu/in/actuator_motors'),
+            (ActuatorServos, f'/{self.fixed_wing_ns}/fmu/in/actuator_servos'),
+            (WrenchStamped, f'{shuttle_prefix}/fmu/in/combined_wrench'),
+            (WrenchStamped, f'{shuttle_prefix}/controller/out/achieved_wrench'),
+            (Vector3Stamped, f'{shuttle_prefix}/controller/out/attitude_reference'),
+            (Vector3Stamped, f'{shuttle_prefix}/controller/out/velocity_tracking'),
+            (Vector3Stamped, f'{shuttle_prefix}/controller/out/altitude_tracking'),
+        ]
+        for msg_type, topic in topics:
+            self.create_subscription(msg_type, topic,
+                                     partial(self.record_message, topic), qos_profile_sensor_data)
+
         self.current_state = None
         self.current_autopilot_plot = None
         self.phase = 'WAIT_FOR_STATE'
@@ -61,10 +87,12 @@ class CombinedVehicleMissionNode(Node):
             f'Combined {mission_label} mission waiting for shuttle telemetry...')
 
     def state_cb(self, msg):
+        self.record_message(f'/{self.shuttle_ns}/fmu/telemetry/state', msg)
         self.current_state = msg
         self.publish_plot_data_if_ready()
 
     def autopilot_plot_cb(self, msg):
+        self.record_message(f'/{self.shuttle_ns}/fmu/telemetry/autopilot_plot', msg)
         self.current_autopilot_plot = msg
         self.publish_plot_data_if_ready()
 
@@ -76,9 +104,23 @@ class CombinedVehicleMissionNode(Node):
         for publisher in self.arm_pubs:
             publisher.publish(msg)
 
+    def record_message(self, topic, msg):
+        if self.bag is not None:
+            self.bag.write(topic, msg)
+
+    def destroy_node(self):
+        if self.bag is not None:
+            self.bag.close()
+            self.bag = None
+        return super().destroy_node()
+
     def publish_trajectory(self):
         if self.trajectory is None:
             self.trajectory = self.build_trajectory()
+        if self.bag is None and self.get_parameter('record_bag').value:
+            directory = self.get_parameter('bag_directory').value or default_bag_directory()
+            self.bag = MissionBag(self, directory, 'combined', self.mission_label, gains={})
+        self.record_message(f'/{self.shuttle_ns}/fmu/mode/follow', self.trajectory)
         self.follow_pub.publish(self.trajectory)
 
     def publish_plot_data_if_ready(self):

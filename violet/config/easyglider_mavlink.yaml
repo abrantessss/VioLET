@@ -4,6 +4,7 @@
       type: los4_mavlink
       update_rate_hz: 100.0
       los4controller:
+        attitude_ff_filter_tau: 0.5  # roll/pitch feedforward rate low-pass time constant [s]
         m: 1.5
         Tmax: 120.0
         gains:

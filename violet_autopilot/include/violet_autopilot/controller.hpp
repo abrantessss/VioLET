@@ -1,6 +1,8 @@
 #pragma once
 
 #include <vector>
+#include <initializer_list>
+#include <utility>
 #include "std_msgs/msg/float64_multi_array.hpp"
 
 #include<Eigen/Dense>
@@ -94,6 +96,26 @@ namespace autopilot {
         plot_pub_->publish(msg);
       }
 
+      // Labelled blocks use the same on-wire convention as Mellinger results.
+      inline void publish_named_results(
+        const std::string & controller,
+        std::initializer_list<std::pair<std::string, std::vector<double>>> blocks)
+      {
+        std_msgs::msg::Float64MultiArray msg;
+        std_msgs::msg::MultiArrayDimension identifier;
+        identifier.label = controller;
+        msg.layout.dim.push_back(identifier);
+        for (const auto & block : blocks) {
+          std_msgs::msg::MultiArrayDimension dim;
+          dim.label = block.first;
+          dim.size = block.second.size();
+          dim.stride = block.second.size();
+          msg.layout.dim.push_back(dim);
+          msg.data.insert(msg.data.end(), block.second.begin(), block.second.end());
+        }
+        results_pub_->publish(msg);
+      }
+
       // Each dimension labels a consecutive block; matrices are row-major.
       inline void publish_mellinger_results(
         double gamma, double gamma_dot, double gamma_ddot, double gamma_dddot,
@@ -101,7 +123,8 @@ namespace autopilot {
         const Eigen::Vector3d & pd, const Eigen::Vector3d & pdd,
         const Eigen::Vector3d & pddd, const Eigen::Vector3d & pdddd,
         const Eigen::Vector3d & dpd_dgamma, const Eigen::Vector3d & ep,
-        const Eigen::Matrix3d & R, const Eigen::Matrix3d & Rd, const Eigen::Vector3d & eR)
+        const Eigen::Matrix3d & R, const Eigen::Matrix3d & Rd, const Eigen::Vector3d & eR,
+        double Tmax, double T)
       {
         std_msgs::msg::Float64MultiArray msg;
         auto block = [&msg](const std::string & label, const std::vector<double> & values) {
@@ -132,6 +155,8 @@ namespace autopilot {
         vector("pd", pd); vector("pdd", pdd); vector("pddd", pddd);
         vector("pdddd", pdddd); vector("dpd_dgamma", dpd_dgamma); vector("ep", ep);
         matrix("R", R); matrix("Rd", Rd); vector("eR", eR);
+        block("Tmax", {Tmax});
+        block("T", {T});
         results_pub_->publish(msg);
       }
 

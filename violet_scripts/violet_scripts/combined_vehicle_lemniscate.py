@@ -7,7 +7,7 @@ from violet_scripts.combined_vehicle_mission_base import CombinedVehicleMissionN
 class CombinedVehicleLemniscateNode(CombinedVehicleMissionNode):
     def __init__(self):
         super().__init__('combined_vehicle_lemniscate_node', 'lemniscate')
-        self.declare_parameter('lemniscate', [0.0, 0.0, -8.0, 15.0, 2.0])
+        self.declare_parameter('lemniscate', [3.0, 3.0, -3.0, 50.0, 4.0])
 
     def build_trajectory(self):
         trajectory = Trajectory()

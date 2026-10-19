@@ -7,6 +7,13 @@
   <maintainer email="user@todo.todo">User</maintainer>
   <license>TODO</license>
 
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>eigen</depend>
+  <depend>mavsdk_vendor</depend>
   <depend>ament_index_python</depend>
   <depend>geometry_msgs</depend>
   <depend>launch</depend>
@@ -18,12 +25,18 @@
   <depend>std_msgs</depend>
   <depend>violet_msgs</depend>
 
+  <exec_depend>ffmpeg</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>ros2bag</exec_depend>
+  <exec_depend>rosbag2_transport</exec_depend>
+  <exec_depend>rosbag2_storage_default_plugins</exec_depend>
+
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
 
   <export>
-    <build_type>ament_python</build_type>
+    <build_type>ament_cmake</build_type>
   </export>
 </package>

@@ -231,6 +231,9 @@ namespace autopilot {
     // Calculate thrust
     Eigen::Vector3d Fd = mass_ * (u - g_);
     double T = -Fd.dot(R.col(2));
+    // Shuttle Jinja model: four rotors, F = motorConstant * omega^2.
+    constexpr double Tmax = 4.0 * 1.709716e-05 * 1400.0 * 1400.0; // N
+    const double T_saturated = std::clamp(T, 0.0, Tmax);
 
     // Calculate desired rotation
     Eigen::Vector3d Yc = Eigen::Vector3d(0.0, 1.0, 0.0); //eta_d [0 0 0]'
@@ -278,7 +281,7 @@ namespace autopilot {
     eR = 0.5*eR;
 
     publish_mellinger_results(gamma_at_evaluation, gamma_dot, gamma_ddot, gamma_dddot,
-      vd, k, p, v, pd, pdd, pddd, pdddd, dpd_dgamma, ep, R, Rd, eR);
+      vd, k, p, v, pd, pdd, pddd, pdddd, dpd_dgamma, ep, R, Rd, eR, Tmax, T_saturated);
 
     // Get attitude control law
     Eigen::Vector3d attitude_rate = wd - (kr_ * eR);

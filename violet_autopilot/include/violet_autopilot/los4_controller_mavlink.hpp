@@ -49,6 +49,9 @@ namespace autopilot{
       double lateral_acceleration_min_;
       double lateral_acceleration_max_;
       double z_ref_;
+      double attitude_ff_filter_tau_{0.5};
+      double roll_ff_filtered_{0.0};
+      double pitch_ff_filtered_{0.0};
       double previous_roll_cmd_{0.0};
       double previous_pitch_cmd_{0.0};
       double E_err_int_{0.0};
