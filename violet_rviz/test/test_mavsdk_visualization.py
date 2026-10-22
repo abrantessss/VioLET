@@ -110,7 +110,7 @@ def test_path_marker_and_graphs_in_rviz_layout():
     assert 'rviz_default_plugins/Marker' in classes
     path_group = next(d for d in displays if d.get('Name') == 'Vehicle Trajectory')
     assert all(d['Class'] == 'rviz_default_plugins/Path' for d in path_group['Displays'])
-    assert len([d for d in displays if d['Class'] == 'rviz_2d_plot_plugin/Plot2D']) == 7
+    assert len([d for d in displays if d['Class'] == 'rviz_2d_plot_plugin/Plot2D']) == 8
 
 
 def test_ned_display_transform(tmp_path, monkeypatch):

@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+import os
+
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.substitutions import LaunchConfiguration
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+
+from ament_index_python.packages import get_package_share_directory
+
+def generate_launch_description():
+
+  # Get world model path
+  world = os.path.join(get_package_share_directory('violet_gazebo'), 'worlds', 'helipad_wind.world')
+
+  return LaunchDescription([
+    DeclareLaunchArgument(
+      'gui',
+      default_value='true',
+      description='Launch Gazebo client GUI'
+    ),
+
+    # Launch default world launch file
+    IncludeLaunchDescription(
+      PythonLaunchDescriptionSource([get_package_share_directory('violet_gazebo'), '/launch/worlds/default_world.launch.py']),
+      launch_arguments={
+        'gui': LaunchConfiguration('gui'),
+        'world': world,
+      }.items()
+    )
+  ])

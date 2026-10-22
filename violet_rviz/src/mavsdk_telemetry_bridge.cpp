@@ -28,7 +28,7 @@ struct Cache {
     uint8_t selected_system=0;
     std::optional<mavlink_heartbeat_t> heartbeat;
     std::optional<mavlink_rc_channels_t> rc;
-    std::optional<std::vector<float>> los4_config, los4_state;
+    std::optional<std::vector<float>> los4_config, los4_state, los4_environment;
     std::optional<std::pair<uint8_t,uint8_t>> los4_source;
     std::optional<Telemetry::Position> gps;
     std::optional<Telemetry::PositionVelocityNed> local;
@@ -70,6 +70,13 @@ public:
         los4_config_pub_ = create_publisher<std_msgs::msg::Float32MultiArray>(
             "telemetry/los4/config", rclcpp::QoS(1).transient_local().reliable());
         los4_state_pub_ = create_publisher<std_msgs::msg::Float32MultiArray>("telemetry/los4/state", qos);
+        environment_pub_ = create_publisher<std_msgs::msg::Float32MultiArray>("telemetry/los4/environment", qos);
+        airspeed_pub_ = create_publisher<std_msgs::msg::Float32>("telemetry/true_airspeed", qos);
+        calibrated_airspeed_pub_ = create_publisher<std_msgs::msg::Float32>("telemetry/calibrated_airspeed", qos);
+        wind_pub_ = create_publisher<geometry_msgs::msg::Vector3Stamped>("telemetry/wind", qos);
+        wind_enabled_pub_ = create_publisher<std_msgs::msg::Bool>("telemetry/wind_enabled", qos);
+        airspeed_valid_pub_ = create_publisher<std_msgs::msg::Bool>("telemetry/airspeed_valid", qos);
+        wind_valid_pub_ = create_publisher<std_msgs::msg::Bool>("telemetry/wind_valid", qos);
         const auto cache = cache_;
         sdk_ = std::make_unique<mavsdk::Mavsdk>(
             mavsdk::Mavsdk::Configuration{mavsdk::Mavsdk::ComponentType::GroundStation});
@@ -94,7 +101,8 @@ public:
             if(cache->los4_source && *cache->los4_source!=source)return true;
             cache->los4_source=source;
             if(values[1]==1)cache->los4_config=std::move(values);
-            else cache->los4_state=std::move(values);
+            else if(values[1]==2)cache->los4_state=std::move(values);
+            else cache->los4_environment=std::move(values);
             return true;
         });
         if (sdk_->add_any_connection(url) != mavsdk::ConnectionResult::Success)
@@ -160,11 +168,25 @@ private:
             controls.swap(cache_->controls); outputs.swap(cache_->outputs);
             attitude = cache_->attitude;
         }
-        std::optional<std::vector<float>> config, state;
+        std::optional<std::vector<float>> config, state, environment;
         {std::lock_guard<std::mutex> lock(cache_->mutex);
-            config.swap(cache_->los4_config);state.swap(cache_->los4_state);}
+            config.swap(cache_->los4_config);state.swap(cache_->los4_state);environment.swap(cache_->los4_environment);}
         if(config) {std_msgs::msg::Float32MultiArray msg;msg.data=*config;los4_config_pub_->publish(msg);}
         if(state) {std_msgs::msg::Float32MultiArray msg;msg.data=*state;los4_state_pub_->publish(msg);}
+        if(environment) {
+            const auto& v=*environment;
+            std_msgs::msg::Float32MultiArray raw;raw.data=v;environment_pub_->publish(raw);
+            std_msgs::msg::Bool flag;flag.data=v[2]==1;wind_enabled_pub_->publish(flag);
+            flag.data=v[9]==1;airspeed_valid_pub_->publish(flag);
+            flag.data=v[10]==1;wind_valid_pub_->publish(flag);
+            std_msgs::msg::Float32 air;air.data=v[3];airspeed_pub_->publish(air);
+            air.data=v[4];calibrated_airspeed_pub_->publish(air);
+            geometry_msgs::msg::Vector3Stamped wind;
+            wind.header.stamp=now();wind.header.frame_id="map_ned";
+            wind.vector.x=v[10]==1?v[5]:NAN;wind.vector.y=v[10]==1?v[6]:NAN;
+            wind.vector.z=NAN; // PX4 provides a horizontal estimate; vertical wind unknown.
+            wind_pub_->publish(wind);
+        }
         std::optional<mavlink_heartbeat_t> heartbeat;
         std::optional<mavlink_rc_channels_t> rc;
         {std::lock_guard<std::mutex> lock(cache_->mutex);heartbeat.swap(cache_->heartbeat);rc.swap(cache_->rc);}
@@ -264,7 +286,7 @@ private:
     int kill_channel_=6,kill_threshold_=1700;
     bool kill_active_high_=true;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mode_pub_;
-    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr armed_pub_,kill_pub_;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr armed_pub_,kill_pub_,wind_enabled_pub_,airspeed_valid_pub_,wind_valid_pub_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr rc_pub_;
     std::shared_ptr<Cache> cache_;
     std::unique_ptr<mavsdk::Mavsdk> sdk_;
@@ -274,12 +296,12 @@ private:
     uint64_t last_attitude_timestamp_{UINT64_MAX};
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
     rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr velocity_pub_;
-    rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr attitude_pub_, rates_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr attitude_pub_, rates_pub_,wind_pub_;
     rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr gps_pub_;
-    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr altitude_pub_;
+    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr altitude_pub_,airspeed_pub_,calibrated_airspeed_pub_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr controls_pub_, outputs_pub_;
     rclcpp::Publisher<std_msgs::msg::UInt32>::SharedPtr active_pub_;
-    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr los4_config_pub_,los4_state_pub_;
+    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr los4_config_pub_,los4_state_pub_,environment_pub_;
     rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr group_pub_;
 };
 int main(int argc, char** argv) {

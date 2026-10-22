@@ -48,7 +48,7 @@ void Autopilot::update() {
         controller_type_ == "shuttle_rate_controller" ||
         controller_type_ == "shuttleratecontroller") {
         controller_->set_attitude_rate(dt, state_.position, state_.inertial_velocity, state_.angular_velocity);
-      } else if ((controller_type_ == "mellinger" || controller_type_ == "los4")) {
+      } else if ((controller_type_ == "mellinger" || controller_type_ == "los4" || controller_type_ == "los4_wind")) {
         controller_->set_attitude_rate(dt, state_.position, state_.inertial_velocity, state_.attitude);
       } else {
         throw std::runtime_error("Unknown controller type: " + controller_type_);
@@ -77,6 +77,8 @@ void Autopilot::init_controller() {
     controller_ = std::make_unique<autopilot::LOS2Controller>();
   } else if (controller_type_ == "los3") {
     controller_ = std::make_unique<autopilot::LOS3Controller>();
+  } else if (controller_type_ == "los4_wind") {
+    controller_ = std::make_unique<autopilot::LOS4WindController>();
   } else if (controller_type_ == "los4") {
     controller_ = std::make_unique<autopilot::LOS4Controller>();
   } else if (controller_type_ == "combined_direct") {

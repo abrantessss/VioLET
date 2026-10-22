@@ -276,12 +276,12 @@ Visualization Manager:
       Name: Velocity
       Plot Mode: Time Series
       Series:
-        Series Count: 3
+        Series Count: 4
         Series 1:
           Value: true
           Topic: /drone1/rviz_plots/velocity/uav
           Field: data
-          Label: UAV Velocity
+          Label: Ground Speed
           Unit: m/s
           Color: 80; 170; 255
           Line Width: 2
@@ -310,6 +310,19 @@ Visualization Manager:
           Label: Desired Velocity
           Unit: m/s
           Color: 80; 220; 130
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 4:
+          Value: true
+          Topic: /drone1/rviz_plots/velocity/true_airspeed
+          Field: data
+          Label: True Airspeed
+          Unit: m/s
+          Color: 220; 100; 240
           Line Width: 2
           Line Alpha: 1
           Line Style: Solid
@@ -351,7 +364,7 @@ Visualization Manager:
         Durability: Volatile
         Depth: 10
     - Class: rviz_2d_plot_plugin/Plot2D
-      Enabled: true
+      Enabled: false
       Name: Yaw Tracking
       Plot Mode: Time Series
       Series:
@@ -719,7 +732,7 @@ Visualization Manager:
         Durability: Volatile
         Depth: 10
     - Class: rviz_2d_plot_plugin/Plot2D
-      Enabled: true
+      Enabled: false
       Name: Body Rates
       Plot Mode: Time Series
       Series:
@@ -834,6 +847,94 @@ Visualization Manager:
         Y Offset: 270
         Horizontal Alignment: Right
         Vertical Alignment: Bottom
+      Style:
+        Background Color: 0; 0; 0
+        Background Alpha: 0.74
+        Axis Color: 230; 230; 230
+        Grid Color: 130; 130; 130
+        Text Color: 245; 245; 245
+        Font Size: 8
+      QoS:
+        Reliability: Reliable
+        Durability: Volatile
+        Depth: 10
+    - Class: rviz_2d_plot_plugin/Plot2D
+      Enabled: true
+      Name: Wind Speeds
+      Plot Mode: Time Series
+      Series:
+        Series Count: 3
+        Series 1:
+          Value: true
+          Topic: /drone1/rviz_plots/wind/north
+          Field: data
+          Label: Wind North
+          Unit: m/s
+          Color: 80; 170; 255
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 2:
+          Value: true
+          Topic: /drone1/rviz_plots/wind/east
+          Field: data
+          Label: Wind East
+          Unit: m/s
+          Color: 255; 170; 60
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+        Series 3:
+          Value: true
+          Topic: /drone1/rviz_plots/wind/horizontal_speed
+          Field: data
+          Label: Horizontal Wind Speed
+          Unit: m/s
+          Color: 80; 220; 130
+          Line Width: 2
+          Line Alpha: 1
+          Line Style: Solid
+          Plot Style: Line
+          Value Scale: 1
+          Value Offset: 0
+      Time:
+        Time Source: Receive Time
+        Window Seconds: 60
+        Refresh Rate: 20
+      Y Axis:
+        Auto Scale: false
+        Y Min: -3.2
+        Y Max: 3.2
+      References:
+        Reference Count: 1
+        Reference 1:
+          Value: true
+          Y Value: 0
+          Tolerance: 0
+          Label: Zero
+          Color: 180; 180; 180
+          Alpha: 0.65
+          Line Width: 1
+          Line Style: Dot
+      Legend:
+        Enabled: true
+        Show Values: true
+        Position: Top Right
+        X Offset: 4
+        Y Offset: 4
+      Layout:
+        Width: 470
+        Height: 240
+        X Offset: 10
+        Y Offset: 10
+        Horizontal Alignment: Center
+        Vertical Alignment: Top
       Style:
         Background Color: 0; 0; 0
         Background Alpha: 0.74

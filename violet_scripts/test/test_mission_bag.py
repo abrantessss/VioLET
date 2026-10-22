@@ -155,3 +155,15 @@ def test_combined_records_priming_and_following_in_one_bag(tmp_path):
     assert '/drone4/fmu/telemetry/state' in topics
     assert '/drone3/fmu/telemetry/controller_results' in topics
     assert len(node.commands) == 2
+
+
+def test_optional_wind_and_airspeed_are_recorded_without_conversion():
+    from types import SimpleNamespace
+    from px4_msgs.msg import Wind, AirspeedValidated
+    written = []
+    node = SimpleNamespace(record_message=lambda suffix, msg: written.append((suffix, msg)))
+    wind = Wind(windspeed_north=-5.0, windspeed_east=0.0)
+    airspeed = AirspeedValidated(true_airspeed_m_s=20.0)
+    EasyGliderMissionNode.wind_cb(node, wind)
+    EasyGliderMissionNode.airspeed_cb(node, airspeed)
+    assert written == [('fmu/out/wind', wind), ('fmu/out/airspeed_validated_v1', airspeed)]

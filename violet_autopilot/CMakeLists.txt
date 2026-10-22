@@ -37,6 +37,7 @@ add_executable(${PROJECT_NAME}
   src/los2_controller.cpp
   src/los3_controller.cpp
   src/los4_controller.cpp
+  src/los4_wind_controller.cpp
   src/combined_direct_controller.cpp
   src/combined_rate_controller.cpp
   src/combined_attitude_controller.cpp
@@ -85,6 +86,14 @@ if(BUILD_TESTING)
     geometry_msgs
     violet_msgs
     px4_msgs
+  )
+  ament_add_gtest(los4_wind_controller_test
+    test/los4_wind_controller_test.cpp
+    src/los4_controller.cpp
+    src/los4_wind_controller.cpp
+  )
+  ament_target_dependencies(los4_wind_controller_test
+    rclcpp geometry_msgs violet_msgs px4_msgs std_msgs
   )
   # the following line skips the linter which checks for copyrights
   # uncomment the line when a copyright and license is not present in all source files

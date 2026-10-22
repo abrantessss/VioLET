@@ -26,6 +26,17 @@ namespace autopilot{
       void set_path(const int type, const double* path) override;
     
     protected:
+      virtual bool energy_speed(const Eigen::Vector3d& velocity, double& speed) {
+        speed = velocity.norm();
+        return true;
+      }
+      virtual double curvature_feedforward(double curvature, const Eigen::Vector2d& tangent,
+        const Eigen::Vector3d& ground_velocity, double airspeed) {
+        (void)tangent;
+        (void)ground_velocity;
+        return airspeed * airspeed * curvature;
+      }
+      virtual const char* results_name() const { return "los4"; }
       // ROS2 messages
       px4_msgs::msg::VehicleRatesSetpoint rates_msg_;
       px4_msgs::msg::OffboardControlMode offboard_msg_;

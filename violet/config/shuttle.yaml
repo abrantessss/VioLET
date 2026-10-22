@@ -263,7 +263,7 @@
           roll: 3.3
           pitch: 3.3
           yaw: 2.3
-        attitude_ff_filter_tau: 0.5  # roll/pitch/yaw feedforward rate low-pass time constant [s]
+        attitude_ff_filter_tau: 5.0 # roll/pitch/yaw feedforward rate low-pass time constant [s]
         attitude_rate_limits: [10.0, 10.0, 10.0]
         state_topic: "fmu/telemetry/state"
         subscribers:

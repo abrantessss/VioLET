@@ -146,3 +146,39 @@ def test_body_rates_decode_and_rviz_topics():
     assert _body_rate_values(msg) == {}
     assert _body_rate_values(message('other', [])) == {}
 
+
+
+def test_true_airspeed_uses_wind_controller_energy_measurement_only():
+    from violet_rviz.plot_bridge import _true_airspeed_values
+    blocks = [('speed', [25.0]), ('energy_speed', [20.0])]
+    assert _true_airspeed_values(message('los4_wind', blocks, offset=2)) == {
+        'velocity/true_airspeed': 20.0}
+    assert _true_airspeed_values(message('los4', blocks)) == {}
+    assert _true_airspeed_values(message('los4_wind', [('energy_speed', [math.nan])])) == {}
+    packet = message('los4_wind', blocks)
+    packet.data.pop()
+    assert _true_airspeed_values(packet) == {}
+    config = yaml.safe_load((Path(__file__).parents[1] / 'rviz/violet_plots.rviz').read_text())
+    plot = next(d for d in config['Visualization Manager']['Displays'] if d.get('Name') == 'Velocity')
+    assert plot['Series']['Series Count'] == 4
+    assert plot['Series']['Series 4']['Topic'].endswith('/velocity/true_airspeed')
+
+
+def test_wind_plot_values_and_default_visibility():
+    from types import SimpleNamespace
+    published = {}
+    bridge = SimpleNamespace(_publish_scalar=lambda key, value: published.update({key: value}))
+    msg = SimpleNamespace(windspeed_north=-3.0, windspeed_east=4.0,
+                          variance_north=0.2, variance_east=0.2)
+    PlotBridge.wind_cb(bridge, msg)
+    assert published == {'wind/north': -3.0, 'wind/east': 4.0, 'wind/horizontal_speed': 5.0}
+    published.clear()
+    msg.variance_north = 0.0
+    PlotBridge.wind_cb(bridge, msg)
+    assert published == {}
+    config = yaml.safe_load((Path(__file__).parents[1] / 'rviz/violet_plots.rviz').read_text())
+    displays = {d['Name']: d for d in config['Visualization Manager']['Displays']}
+    assert not displays['Body Rates']['Enabled']
+    assert not displays['Yaw Tracking']['Enabled']
+    assert displays['Wind Speeds']['Enabled']
+    assert displays['Wind Speeds']['Series']['Series Count'] == 3

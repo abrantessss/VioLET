@@ -6,7 +6,7 @@
 
 // Standard MAVLink TUNNEL, custom payload_type 32768, broadcast destination.
 // Four-byte magic VLOS followed by little-endian IEEE754 float32 values.
-// Version 1: configuration kind=1 (15 values); state kind=2 (25 values).
+// Version 1: configuration kind=1 (15), state kind=2 (25), environment kind=3 (12).
 namespace los4_wire {
 constexpr uint16_t payload_type=32768;
 inline std::array<uint8_t,128> encode(const std::vector<float>& values) {
@@ -26,8 +26,8 @@ inline std::vector<float> decode(const uint8_t* bytes,std::size_t length) {
         uint32_t bits=0;for(int j=0;j<4;++j)bits|=uint32_t(bytes[4+4*i+j])<<(8*j);
         std::memcpy(&values[i],&bits,4);
     }
-    if(values[0]!=1 || (values[1]!=1 && values[1]!=2) ||
-       (values[1]==1 && values.size()!=15) || (values[1]==2 && values.size()!=25))return {};
+    if(values[0]!=1 || (values[1]!=1 && values[1]!=2 && values[1]!=3) ||
+       (values[1]==1 && values.size()!=15) || (values[1]==2 && values.size()!=25) || (values[1]==3 && values.size()!=12))return {};
     return values;
 }
 }

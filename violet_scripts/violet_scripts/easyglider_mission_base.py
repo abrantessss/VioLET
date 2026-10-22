@@ -7,6 +7,7 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
 from std_msgs.msg import Float64MultiArray
+from px4_msgs.msg import AirspeedValidated, Wind
 from violet_scripts.mission_bag import MissionBag, default_bag_directory
 
 from violet_msgs.msg import AutopilotPlot, Mode, PlotData, State, Trajectory
@@ -56,6 +57,13 @@ class EasyGliderMissionNode(Node):
             self.results_cb, qos_profile_sensor_data,
         )
 
+        # Optional telemetry: topics are recorded only when messages arrive.
+        self.wind_sub = self.create_subscription(
+            Wind, f'{vehicle_prefix}/fmu/out/wind', self.wind_cb, qos_profile_sensor_data)
+        self.airspeed_sub = self.create_subscription(
+            AirspeedValidated, f'{vehicle_prefix}/fmu/out/airspeed_validated_v1',
+            self.airspeed_cb, qos_profile_sensor_data)
+
         self.current_state = None
         self.current_autopilot_plot = None
         self.phase = 'WAIT_FOR_STATE'
@@ -68,6 +76,12 @@ class EasyGliderMissionNode(Node):
 
         self.timer = self.create_timer(0.05, self.timer_cb)
         self.get_logger().info(f'{self.mission_label} mission node started, waiting for telemetry...')
+
+    def wind_cb(self, msg):
+        self.record_message('fmu/out/wind', msg)
+
+    def airspeed_cb(self, msg):
+        self.record_message('fmu/out/airspeed_validated_v1', msg)
 
     def state_cb(self, msg):
         self.record_message('fmu/telemetry/state', msg)
@@ -107,10 +121,10 @@ class EasyGliderMissionNode(Node):
                         raise RuntimeError(f'Non-finite LOS4 {dim.label} in controller results')
                     gains[dim.label] = f'{value:g}'
                 offset += dim.size
-            if not msg.layout.dim or msg.layout.dim[0].label != 'los4' or len(gains) != 2:
+            if not msg.layout.dim or msg.layout.dim[0].label not in ('los4', 'los4_wind') or len(gains) != 2:
                 raise RuntimeError('Easyglider recording requires LOS4 results with k1 and k2')
             directory = self.get_parameter('bag_directory').value or default_bag_directory()
-            self.bag = MissionBag(self, directory, 'los4', self.mission_label,
+            self.bag = MissionBag(self, directory, msg.layout.dim[0].label, self.mission_label,
                                   gains={key: gains[key] for key in ('k1', 'k2')})
             for topic, message, timestamp in self.pending_messages:
                 self.bag.write(topic, message, timestamp)

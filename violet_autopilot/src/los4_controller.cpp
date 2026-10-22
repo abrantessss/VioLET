@@ -201,6 +201,10 @@ namespace autopilot {
   }
 
   void LOS4Controller::set_attitude_rate(const double dt, const Eigen::Vector3d& p, const Eigen::Vector3d& v, const Eigen::Vector3d& eta) {
+    double measured_energy_speed = 0.0;
+    if (!energy_speed(v, measured_energy_speed)) {
+      return;  // No fresh validated airspeed: do not advance guidance or integrate energy errors.
+    }
     const double gamma_at_evaluation = gamma_;
     Eigen::Vector3d pd = Eigen::Vector3d::Zero();
     Eigen::Vector3d ep = Eigen::Vector3d::Zero();
@@ -299,7 +303,7 @@ namespace autopilot {
 
     // Longitudinal Controller
     constexpr double g = 9.81;
-    const double K_err = 0.5 * m_ * (Va*Va - v.squaredNorm());
+    const double K_err = 0.5 * m_ * (Va*Va - measured_energy_speed * measured_energy_speed);
     const double U_err = m_ * g * (-p.z() - z_ref_);
 
     const double E_err = U_err + K_err;
@@ -341,7 +345,8 @@ namespace autopilot {
     const double e_z = h_current.cross(h_ref)(2);
 
     const double lateral_acceleration_feedforward =
-      Va * Va * signed_horizontal_curvature(dpd_dgamma, d2pd_dgamma2);
+      curvature_feedforward(signed_horizontal_curvature(dpd_dgamma, d2pd_dgamma2),
+        dpd_dgamma.head<2>().normalized(), v, Va);
 
     const double lateral_acceleration_cmd = std::clamp(
       lateral_acceleration_feedforward + ka_ * e_z,
@@ -398,7 +403,7 @@ namespace autopilot {
     const double desired_heading = std::atan2(h.y(), h.x());
     const double heading_error = std::atan2(std::sin(desired_heading - eta(2)),
                                           std::cos(desired_heading - eta(2)));
-    publish_named_results("los4", {
+    publish_named_results(results_name(), {
       {"gamma", {gamma_at_evaluation}}, {"gamma_dot", {gamma_dot}},
       {"vd", {Va}}, {"k1", {k1_}}, {"k2", {k2_}},
       {"kpE", {kpE_}}, {"kiE", {kiE_}}, {"kpB", {kpB_}}, {"kiB", {kiB_}},
@@ -406,6 +411,8 @@ namespace autopilot {
       {"mass", {m_}}, {"Tmax", {Tmax_}},
       {"position", {p.x(), p.y(), p.z()}}, {"velocity", {v.x(), v.y(), v.z()}},
       {"speed", {v.norm()}}, {"speed_error", {Va - v.norm()}},
+      {"energy_speed", {measured_energy_speed}},
+      {"energy_speed_error", {Va - measured_energy_speed}},
       {"pd", {pd.x(), pd.y(), pd.z()}},
       {"dpd_dgamma", {dpd_dgamma.x(), dpd_dgamma.y(), dpd_dgamma.z()}},
       {"d2pd_dgamma2", {d2pd_dgamma2.x(), d2pd_dgamma2.y(), d2pd_dgamma2.z()}},

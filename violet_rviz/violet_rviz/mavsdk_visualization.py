@@ -71,6 +71,7 @@ class MavsdkVisualization(Node):
         self.pose_pub = self.create_publisher(PoseStamped, 'rviz_plots/pose', 10)
         keys = ['velocity/speed', 'velocity/east', 'velocity/north', 'velocity/down',
                 'attitude/roll', 'attitude/pitch', 'attitude/yaw']
+        keys += ['velocity/airspeed', 'wind/north', 'wind/east', 'wind/speed', 'wind/compensation']
         keys += ['velocity/desired', 'velocity/gamma_speed', 'gamma', 'gamma_dot', 'controller_state']
         keys += [f'path_error/{axis}' for axis in ('north', 'east', 'down', 'norm')]
         keys += [f'attitude_desired/{axis}' for axis in ('roll', 'pitch', 'heading')]
@@ -85,6 +86,8 @@ class MavsdkVisualization(Node):
         self.create_subscription(Float32MultiArray, 'telemetry/los4/config', self.los4_config_cb,
                                  QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.create_subscription(Float32MultiArray, 'telemetry/los4/state', self.los4_state_cb,
+                                 qos_profile_sensor_data)
+        self.create_subscription(Float32MultiArray, 'telemetry/los4/environment', self.environment_cb,
                                  qos_profile_sensor_data)
         self.mode_pub = self.create_publisher(Marker, 'rviz_plots/vehicle_mode', 10)
         for topic, kind in (('flight_mode', String), ('armed', Bool), ('kill_active', Bool)):
@@ -211,6 +214,18 @@ class MavsdkVisualization(Node):
         else:
             trajectory.lemniscate = list(v[9:12]) + [float(v[13]), float(v[14])]
         self.publish_reference(trajectory_points(trajectory))
+
+    def environment_cb(self, msg):
+        v = msg.data
+        if len(v) != 12 or v[0] != 1 or v[1] != 3:
+            return
+        if v[9] == 1:
+            self.scalar('velocity/airspeed', v[3])
+        if v[10] == 1 and all(math.isfinite(x) for x in v[5:7]):
+            self.scalar('wind/north', v[5])
+            self.scalar('wind/east', v[6])
+            self.scalar('wind/speed', math.hypot(v[5], v[6]))
+        self.scalar('wind/compensation', v[11])
 
     def los4_state_cb(self, msg):
         v = msg.data

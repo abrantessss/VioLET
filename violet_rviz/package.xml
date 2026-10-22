@@ -24,6 +24,7 @@
   <depend>rviz_2d_plot_plugin</depend>
   <depend>std_msgs</depend>
   <depend>violet_msgs</depend>
+  <depend>px4_msgs</depend>
 
   <exec_depend>ffmpeg</exec_depend>
   <exec_depend>tf2_ros</exec_depend>

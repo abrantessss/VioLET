@@ -5,6 +5,7 @@ from collections import deque
 import rclpy
 from geometry_msgs.msg import PointStamped, PoseStamped, Quaternion, Vector3Stamped, WrenchStamped
 from nav_msgs.msg import Path
+from px4_msgs.msg import Wind
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Float32, Float64MultiArray
@@ -94,6 +95,24 @@ def _attitude_error_values(msg):
             for key, value in zip(ATTITUDE_ERROR_KEYS, errors) if math.isfinite(value)}
 
 
+def _true_airspeed_values(msg):
+    """Use the wind controller's validated TAS, never baseline ground-speed energy data."""
+    if not msg.layout.dim or msg.layout.dim[0].label != 'los4_wind':
+        return {}
+    offset = int(msg.layout.data_offset)
+    values = {}
+    for dim in msg.layout.dim:
+        count = int(dim.size)
+        if offset + count > len(msg.data):
+            return {}
+        if dim.label == 'energy_speed' and count == 1:
+            value = float(msg.data[offset])
+            if math.isfinite(value) and value >= 0.0:
+                values['velocity/true_airspeed'] = value
+        offset += count
+    return values
+
+
 def _norm3(values):
     return math.sqrt(sum(float(value) * float(value) for value in values[:3]))
 
@@ -131,6 +150,7 @@ class PlotBridge(Node):
         self.declare_parameter('velocity_tracking_topic', '')
         self.declare_parameter('altitude_tracking_topic', '')
         self.declare_parameter('tracking_publish_rate_hz', 20.0)
+        self.declare_parameter('wind_topic', '')
 
         vehicle_ns = self.get_parameter('vehicle_ns').value.strip('/')
         output_prefix = self.get_parameter('output_prefix').value.strip('/')
@@ -229,6 +249,10 @@ class PlotBridge(Node):
                 Float32, f'{self.base_topic}/altitude/z_error', 10),
         }
 
+        self.latest_tracking_values['velocity/true_airspeed'] = math.nan
+        self.scalar_publishers['velocity/true_airspeed'] = self.create_publisher(
+            Float32, f'{self.base_topic}/velocity/true_airspeed', 10)
+
         for label in THRUST_LABELS:
             key = f'thrust/{label}'
             self.latest_tracking_values[key] = math.nan
@@ -237,6 +261,11 @@ class PlotBridge(Node):
 
         for key in ATTITUDE_ERROR_KEYS + BODY_RATE_KEYS:
             self.latest_tracking_values[key] = math.nan
+            self.scalar_publishers[key] = self.create_publisher(
+                Float32, f'{self.base_topic}/{key}', 10)
+
+        for name in ('north', 'east', 'horizontal_speed'):
+            key = f'wind/{name}'
             self.scalar_publishers[key] = self.create_publisher(
                 Float32, f'{self.base_topic}/{key}', 10)
 
@@ -257,6 +286,8 @@ class PlotBridge(Node):
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
         )
+        wind_topic = self.get_parameter('wind_topic').value or f'/{vehicle_ns}/fmu/out/wind'
+        self.create_subscription(Wind, wind_topic, self.wind_cb, plot_data_qos)
         self.create_subscription(PlotData, plot_data_topic, self.plot_data_cb, plot_data_qos)
         self.create_subscription(Float64MultiArray, controller_results_topic,
                                  self.controller_results_cb, plot_data_qos)
@@ -352,6 +383,18 @@ class PlotBridge(Node):
             self.latest_tracking_values[key] = math.nan
         self.latest_tracking_values.update(_attitude_error_values(msg))
         self.latest_tracking_values.update(_body_rate_values(msg))
+        self.latest_tracking_values['velocity/true_airspeed'] = math.nan
+        self.latest_tracking_values.update(_true_airspeed_values(msg))
+
+    def wind_cb(self, msg):
+        # Publish on receipt so a stopped wind stream does not appear to remain live.
+        north, east = float(msg.windspeed_north), float(msg.windspeed_east)
+        if (not all(math.isfinite(v) for v in (north, east, msg.variance_north, msg.variance_east))
+                or msg.variance_north <= 0.0 or msg.variance_east <= 0.0):
+            return
+        self._publish_scalar('wind/north', north)
+        self._publish_scalar('wind/east', east)
+        self._publish_scalar('wind/horizontal_speed', math.hypot(north, east))
 
     def attitude_reference_cb(self, msg):
         yaw_command = float(msg.vector.z)
