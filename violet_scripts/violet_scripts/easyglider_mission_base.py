@@ -24,6 +24,7 @@ class EasyGliderMissionNode(Node):
         self.recording_pending = False
         self.recording_started_at = None
         self.pending_messages = []
+        self.record_wind_airspeed = None
         self.declare_parameter('vehicle_ns', 'drone1')
         self.vehicle_ns = self.get_parameter('vehicle_ns').get_parameter_value().string_value
         vehicle_prefix = f'/{self.vehicle_ns}'
@@ -96,6 +97,9 @@ class EasyGliderMissionNode(Node):
     def record_message(self, suffix, msg):
         topic = f'/{self.vehicle_ns}/{suffix}'
         timestamp = self.get_clock().now().nanoseconds
+        if (suffix in ('fmu/out/wind', 'fmu/out/airspeed_validated_v1')
+                and getattr(self, 'record_wind_airspeed', None) is False):
+            return
         if self.bag is not None:
             self.bag.write(topic, msg, timestamp)
         elif self.recording_pending:
@@ -113,8 +117,11 @@ class EasyGliderMissionNode(Node):
     def results_cb(self, msg):
         if self.recording_pending:
             gains = {}
+            self.record_wind_airspeed = False
             offset = 0
             for dim in msg.layout.dim:
+                if dim.label == 'record_wind_airspeed' and dim.size == 1:
+                    self.record_wind_airspeed = msg.data[offset] == 1.0
                 if dim.label in ('k1', 'k2') and dim.size == 1:
                     value = msg.data[offset]
                     if not math.isfinite(value):
@@ -127,6 +134,10 @@ class EasyGliderMissionNode(Node):
             self.bag = MissionBag(self, directory, msg.layout.dim[0].label, self.mission_label,
                                   gains={key: gains[key] for key in ('k1', 'k2')})
             for topic, message, timestamp in self.pending_messages:
+                if (not self.record_wind_airspeed and topic in (
+                        f'/{self.vehicle_ns}/fmu/out/wind',
+                        f'/{self.vehicle_ns}/fmu/out/airspeed_validated_v1')):
+                    continue
                 self.bag.write(topic, message, timestamp)
             self.pending_messages.clear()
             self.recording_pending = False
@@ -228,7 +239,7 @@ class EasyGliderMissionNode(Node):
             if (
                 not self.shutdown_requested
                 and self.done_start_time is not None
-                and time.time() - self.done_start_time > 60.0
+                and time.time() - self.done_start_time > 50.0
             ):
                 self.get_logger().info(f'Plot window complete. Shutting down {self.get_name()}...')
                 self.shutdown_requested = True

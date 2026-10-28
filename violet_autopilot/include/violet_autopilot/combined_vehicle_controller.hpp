@@ -67,6 +67,7 @@ namespace autopilot {
       Eigen::Matrix<double, 3, 1> fixed_wing_prop_position_;
       Eigen::Matrix<double, 5, 1> motor_constants_;
       Eigen::Matrix<double, 5, 1> max_rot_velocities_;
+      Eigen::Matrix<double, 5, 1> motor_idle_speeds_;
       Eigen::Matrix<double, 5, 1> thrust_trim_;
       double quad_moment_constant_{0.016};
       double fixed_wing_moment_constant_{0.126};

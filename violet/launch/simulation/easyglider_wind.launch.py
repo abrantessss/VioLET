@@ -5,7 +5,7 @@ from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
@@ -30,7 +30,13 @@ def generate_launch_description():
      
   config_yaml_arg = DeclareLaunchArgument(
       'config_yaml',
-      default_value=os.path.join(get_package_share_directory('violet'), 'config', 'easyglider_wind.yaml')
+      default_value=PathJoinSubstitution([
+        get_package_share_directory('violet'), 'config',
+        PythonExpression([
+          "'easyglider_wind_baseline.yaml' if '", LaunchConfiguration('controller'),
+          "' == 'los4' else 'easyglider_wind.yaml'",
+        ]),
+      ])
   )
 
   gui_arg = DeclareLaunchArgument(
@@ -40,6 +46,10 @@ def generate_launch_description():
   )
      
   return LaunchDescription([
+    DeclareLaunchArgument(
+      'controller', default_value='los4_wind', choices=['los4', 'los4_wind'],
+      description='Compare baseline LOS4 and wind-aware LOS4 in the same windy world',
+    ),
     config_yaml_arg,
     gui_arg,
     world_launch_file,

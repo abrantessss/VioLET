@@ -14,7 +14,7 @@ def test_environment_plots_only_valid_measurements():
     node = SimpleNamespace(scalar=lambda key, value: samples.__setitem__(key, value))
     packet = [1., 3., 1., 20., 19., 3., 4., .1, .1, 1., 1., 1.]
     MavsdkVisualization.environment_cb(node, SimpleNamespace(data=packet))
-    assert samples['velocity/airspeed'] == 20
+    assert samples['velocity/airspeed'] == 19
     assert samples['wind/speed'] == 5
     assert samples['wind/north'] == 3
     assert samples['wind/east'] == 4
@@ -27,13 +27,21 @@ def test_environment_plots_only_valid_measurements():
     assert not samples
 
 
+def test_cas_packet_uses_cas_slot_without_tas():
+    samples = {}
+    node = SimpleNamespace(scalar=lambda key, value: samples.__setitem__(key, value))
+    packet = [2., 3., 1., float('nan'), 18., 3., 4., .1, .1, 1., 1., 1.]
+    MavsdkVisualization.environment_cb(node, SimpleNamespace(data=packet))
+    assert samples['velocity/airspeed'] == 18
+
+
 def test_speed_and_wind_graph_configuration():
     config = yaml.safe_load((Path(__file__).parents[1]/'rviz/pf_los4.rviz').read_text())
     displays = config['Visualization Manager']['Displays']
     speed = next(d for d in displays if d.get('Name') == 'Vehicle Velocity')
     series = [v for k, v in speed['Series'].items() if k != 'Series Count']
-    assert speed['Series']['Series Count'] == len(series) == 4
-    assert {s['Topic'].split('/')[-1] for s in series} == {'speed', 'airspeed', 'desired', 'gamma_speed'}
+    assert speed['Series']['Series Count'] == len(series) == 5
+    assert {s['Topic'].split('/')[-1] for s in series} == {'speed', 'horizontal_speed', 'airspeed', 'desired', 'gamma_speed'}
     wind = next(d for d in displays if d.get('Name') == 'Wind Speed')
     assert wind['Enabled'] and wind['Series']['Series Count'] == 3
     assert wind['Series']['Series 1']['Topic'].endswith('/wind/speed')

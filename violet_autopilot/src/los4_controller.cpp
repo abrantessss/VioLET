@@ -1,4 +1,5 @@
 #include "los4_controller.hpp"
+#include "los4_energy_control.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -35,37 +36,6 @@ namespace autopilot {
       return command;
     }
 
-    double throttle_command_with_antiwindup(
-      const double energy_error,
-      const double dt,
-      double& energy_error_integral,
-      const double ki,
-      const double feedforward,
-      const double kp,
-      const double va,
-      const double tmax)
-    {
-      const double integral_candidate = energy_error_integral + energy_error * dt;
-      const double thrust_fraction_unsaturated =
-        (ki * integral_candidate + (feedforward - kp * energy_error) / va) / tmax;
-      // Gazebo maps throttle linearly to rotor speed, with thrust proportional
-      // to speed squared: T = Tmax * throttle^2.
-      const double command = std::sqrt(std::clamp(thrust_fraction_unsaturated, 0.0, 1.0));
-
-      const bool saturated_high = thrust_fraction_unsaturated > 1.0;
-      const bool saturated_low = thrust_fraction_unsaturated < 0.0;
-      const bool drives_out_of_high_saturation = saturated_high && energy_error < 0.0;
-      const bool drives_out_of_low_saturation = saturated_low && energy_error > 0.0;
-
-      if ((!saturated_high && !saturated_low) ||
-          drives_out_of_high_saturation ||
-          drives_out_of_low_saturation) {
-        energy_error_integral = integral_candidate;
-      }
-
-      return command;
-    }
-
     Eigen::Vector3d lemniscate_derivative(const double a, const double gamma)
     {
       // Gerono lemniscate, matching Mellinger's path geometry.
@@ -88,6 +58,8 @@ namespace autopilot {
   LOS4Controller::~LOS4Controller() {}
 
   void LOS4Controller::initialize() {
+    record_wind_airspeed_ = node_->declare_parameter<bool>(
+      "controllers.los4controller.record_wind_airspeed", false);
     node_->declare_parameter<std::string>("controllers.los4controller.publishers.setpoint", "fmu/in/vehicle_rates_setpoint");
     rates_pub_ = node_->create_publisher<px4_msgs::msg::VehicleRatesSetpoint>(node_->get_parameter("controllers.los4controller.publishers.setpoint").as_string(), rclcpp::SensorDataQoS());
     
@@ -303,7 +275,8 @@ namespace autopilot {
 
     // Longitudinal Controller
     constexpr double g = 9.81;
-    const double K_err = 0.5 * m_ * (Va*Va - measured_energy_speed * measured_energy_speed);
+    // Both energy errors use actual minus desired.
+    const double K_err = kinetic_energy_error(m_, measured_energy_speed, Va);
     const double U_err = m_ * g * (-p.z() - z_ref_);
 
     const double E_err = U_err + K_err;
@@ -317,7 +290,9 @@ namespace autopilot {
       m_ * g * h_d_dot,
       kpE_,
       Va,
-      Tmax_);
+      Tmax_,
+      throttle_min_,
+      throttle_max_);
 
     const double pitch_feedforward = h_d_dot / Va;
     const double pitch_feedback_cmd = pi_command_with_antiwindup(
@@ -404,6 +379,7 @@ namespace autopilot {
     const double heading_error = std::atan2(std::sin(desired_heading - eta(2)),
                                           std::cos(desired_heading - eta(2)));
     publish_named_results(results_name(), {
+      {"record_wind_airspeed", {record_wind_airspeed_ ? 1.0 : 0.0}},
       {"gamma", {gamma_at_evaluation}}, {"gamma_dot", {gamma_dot}},
       {"vd", {Va}}, {"k1", {k1_}}, {"k2", {k2_}},
       {"kpE", {kpE_}}, {"kiE", {kiE_}}, {"kpB", {kpB_}}, {"kiB", {kiB_}},

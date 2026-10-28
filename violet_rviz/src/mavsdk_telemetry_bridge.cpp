@@ -71,7 +71,8 @@ public:
             "telemetry/los4/config", rclcpp::QoS(1).transient_local().reliable());
         los4_state_pub_ = create_publisher<std_msgs::msg::Float32MultiArray>("telemetry/los4/state", qos);
         environment_pub_ = create_publisher<std_msgs::msg::Float32MultiArray>("telemetry/los4/environment", qos);
-        airspeed_pub_ = create_publisher<std_msgs::msg::Float32>("telemetry/true_airspeed", qos);
+        airspeed_pub_ = create_publisher<std_msgs::msg::Float32>("telemetry/airspeed", qos);
+        legacy_tas_pub_ = create_publisher<std_msgs::msg::Float32>("telemetry/true_airspeed", qos);
         calibrated_airspeed_pub_ = create_publisher<std_msgs::msg::Float32>("telemetry/calibrated_airspeed", qos);
         wind_pub_ = create_publisher<geometry_msgs::msg::Vector3Stamped>("telemetry/wind", qos);
         wind_enabled_pub_ = create_publisher<std_msgs::msg::Bool>("telemetry/wind_enabled", qos);
@@ -179,7 +180,9 @@ private:
             std_msgs::msg::Bool flag;flag.data=v[2]==1;wind_enabled_pub_->publish(flag);
             flag.data=v[9]==1;airspeed_valid_pub_->publish(flag);
             flag.data=v[10]==1;wind_valid_pub_->publish(flag);
-            std_msgs::msg::Float32 air;air.data=v[3];airspeed_pub_->publish(air);
+            std_msgs::msg::Float32 air;
+            if(v[0]==1) {air.data=v[3];legacy_tas_pub_->publish(air);} // Old recordings only.
+            air.data=v[9]==1?v[4]:NAN;airspeed_pub_->publish(air);
             air.data=v[4];calibrated_airspeed_pub_->publish(air);
             geometry_msgs::msg::Vector3Stamped wind;
             wind.header.stamp=now();wind.header.frame_id="map_ned";
@@ -298,7 +301,7 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr velocity_pub_;
     rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr attitude_pub_, rates_pub_,wind_pub_;
     rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr gps_pub_;
-    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr altitude_pub_,airspeed_pub_,calibrated_airspeed_pub_;
+    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr altitude_pub_,airspeed_pub_,calibrated_airspeed_pub_,legacy_tas_pub_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr controls_pub_, outputs_pub_;
     rclcpp::Publisher<std_msgs::msg::UInt32>::SharedPtr active_pub_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr los4_config_pub_,los4_state_pub_,environment_pub_;

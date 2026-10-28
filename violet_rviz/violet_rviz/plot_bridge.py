@@ -5,7 +5,7 @@ from collections import deque
 import rclpy
 from geometry_msgs.msg import PointStamped, PoseStamped, Quaternion, Vector3Stamped, WrenchStamped
 from nav_msgs.msg import Path
-from px4_msgs.msg import Wind
+from px4_msgs.msg import AirspeedValidated, Wind
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Float32, Float64MultiArray
@@ -95,24 +95,6 @@ def _attitude_error_values(msg):
             for key, value in zip(ATTITUDE_ERROR_KEYS, errors) if math.isfinite(value)}
 
 
-def _true_airspeed_values(msg):
-    """Use the wind controller's validated TAS, never baseline ground-speed energy data."""
-    if not msg.layout.dim or msg.layout.dim[0].label != 'los4_wind':
-        return {}
-    offset = int(msg.layout.data_offset)
-    values = {}
-    for dim in msg.layout.dim:
-        count = int(dim.size)
-        if offset + count > len(msg.data):
-            return {}
-        if dim.label == 'energy_speed' and count == 1:
-            value = float(msg.data[offset])
-            if math.isfinite(value) and value >= 0.0:
-                values['velocity/true_airspeed'] = value
-        offset += count
-    return values
-
-
 def _norm3(values):
     return math.sqrt(sum(float(value) * float(value) for value in values[:3]))
 
@@ -151,6 +133,7 @@ class PlotBridge(Node):
         self.declare_parameter('altitude_tracking_topic', '')
         self.declare_parameter('tracking_publish_rate_hz', 20.0)
         self.declare_parameter('wind_topic', '')
+        self.declare_parameter('airspeed_topic', '')
 
         vehicle_ns = self.get_parameter('vehicle_ns').value.strip('/')
         output_prefix = self.get_parameter('output_prefix').value.strip('/')
@@ -249,7 +232,6 @@ class PlotBridge(Node):
                 Float32, f'{self.base_topic}/altitude/z_error', 10),
         }
 
-        self.latest_tracking_values['velocity/true_airspeed'] = math.nan
         self.scalar_publishers['velocity/true_airspeed'] = self.create_publisher(
             Float32, f'{self.base_topic}/velocity/true_airspeed', 10)
 
@@ -288,6 +270,9 @@ class PlotBridge(Node):
         )
         wind_topic = self.get_parameter('wind_topic').value or f'/{vehicle_ns}/fmu/out/wind'
         self.create_subscription(Wind, wind_topic, self.wind_cb, plot_data_qos)
+        airspeed_topic = (self.get_parameter('airspeed_topic').value
+                          or f'/{vehicle_ns}/fmu/out/airspeed_validated_v1')
+        self.create_subscription(AirspeedValidated, airspeed_topic, self.airspeed_cb, plot_data_qos)
         self.create_subscription(PlotData, plot_data_topic, self.plot_data_cb, plot_data_qos)
         self.create_subscription(Float64MultiArray, controller_results_topic,
                                  self.controller_results_cb, plot_data_qos)
@@ -383,8 +368,12 @@ class PlotBridge(Node):
             self.latest_tracking_values[key] = math.nan
         self.latest_tracking_values.update(_attitude_error_values(msg))
         self.latest_tracking_values.update(_body_rate_values(msg))
-        self.latest_tracking_values['velocity/true_airspeed'] = math.nan
-        self.latest_tracking_values.update(_true_airspeed_values(msg))
+
+    def airspeed_cb(self, msg):
+        # Sensor TAS is independent of which speed the active controller regulates.
+        speed = float(msg.true_airspeed_m_s)
+        if 0 <= msg.airspeed_source <= 4 and math.isfinite(speed) and speed >= 0.0:
+            self._publish_scalar('velocity/true_airspeed', speed)
 
     def wind_cb(self, msg):
         # Publish on receipt so a stopped wind stream does not appear to remain live.

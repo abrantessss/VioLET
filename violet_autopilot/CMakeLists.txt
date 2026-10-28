@@ -87,6 +87,8 @@ if(BUILD_TESTING)
     violet_msgs
     px4_msgs
   )
+  ament_add_gtest(los4_energy_control_test test/los4_energy_control_test.cpp)
+  ament_add_gtest(motor_thrust_model_test test/motor_thrust_model_test.cpp)
   ament_add_gtest(los4_wind_controller_test
     test/los4_wind_controller_test.cpp
     src/los4_controller.cpp

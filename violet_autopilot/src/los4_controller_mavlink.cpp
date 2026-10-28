@@ -1,4 +1,5 @@
 #include "los4_controller_mavlink.hpp"
+#include "los4_energy_control.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -31,37 +32,6 @@ namespace autopilot {
           drives_out_of_high_saturation ||
           drives_out_of_low_saturation) {
         error_integral = integral_candidate;
-      }
-
-      return command;
-    }
-
-    double throttle_command_with_antiwindup(
-      const double energy_error,
-      const double dt,
-      double& energy_error_integral,
-      const double ki,
-      const double feedforward,
-      const double kp,
-      const double va,
-      const double tmax)
-    {
-      const double integral_candidate = energy_error_integral + energy_error * dt;
-      const double thrust_fraction_unsaturated =
-        (ki * integral_candidate + (feedforward - kp * energy_error) / va) / tmax;
-      // Gazebo maps throttle linearly to rotor speed, with thrust proportional
-      // to speed squared: T = Tmax * throttle^2.
-      const double command = std::sqrt(std::clamp(thrust_fraction_unsaturated, 0.0, 1.0));
-
-      const bool saturated_high = thrust_fraction_unsaturated > 1.0;
-      const bool saturated_low = thrust_fraction_unsaturated < 0.0;
-      const bool drives_out_of_high_saturation = saturated_high && energy_error < 0.0;
-      const bool drives_out_of_low_saturation = saturated_low && energy_error > 0.0;
-
-      if ((!saturated_high && !saturated_low) ||
-          drives_out_of_high_saturation ||
-          drives_out_of_low_saturation) {
-        energy_error_integral = integral_candidate;
       }
 
       return command;
@@ -295,7 +265,8 @@ namespace autopilot {
 
     // Longitudinal Controller
     constexpr double g = 9.81;
-    const double K_err = 0.5 * m_ * (Va*Va - v.squaredNorm());
+    // Both energy errors use actual minus desired.
+    const double K_err = kinetic_energy_error(m_, v.norm(), Va);
     const double U_err = m_ * g * (-p.z() - z_ref_);
 
     const double E_err = U_err + K_err;
@@ -309,7 +280,9 @@ namespace autopilot {
       m_ * g * h_d_dot,
       kpE_,
       Va,
-      Tmax_);
+      Tmax_,
+      throttle_min_,
+      throttle_max_);
 
     const double pitch_feedforward = h_d_dot / Va;
     const double pitch_feedback_cmd = pi_command_with_antiwindup(

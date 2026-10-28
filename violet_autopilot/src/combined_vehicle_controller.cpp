@@ -1,4 +1,5 @@
 #include "combined_vehicle_controller.hpp"
+#include "motor_thrust_model.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -6,6 +7,7 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
+#include <stdexcept>
 #include <vector>
 
 namespace autopilot {
@@ -178,6 +180,9 @@ namespace autopilot {
     node_->declare_parameter<std::vector<double>>(
       "controllers.combinedvehiclecontroller.max_rot_velocities",
       {1400.0, 1400.0, 1400.0, 1400.0, 3500.0});
+    node_->declare_parameter<std::vector<double>>(
+      "controllers.combinedvehiclecontroller.motor_idle_speeds",
+      {100.0, 100.0, 100.0, 100.0, 0.0});
     node_->declare_parameter<std::vector<double>>(
       "controllers.combinedvehiclecontroller.thrust_trim",
       {0.0, 0.0, 0.0, 0.0, 0.0});
@@ -497,6 +502,12 @@ namespace autopilot {
       default_max_rot_velocities,
       node_->get_logger(),
       "controllers.combinedvehiclecontroller.max_rot_velocities");
+    Eigen::Matrix<double, Eigen::Dynamic, 1> default_idle_speeds(5);
+    default_idle_speeds << 100.0, 100.0, 100.0, 100.0, 0.0;
+    motor_idle_speeds_ = vector_parameter_or_default(
+      node_->get_parameter("controllers.combinedvehiclecontroller.motor_idle_speeds").as_double_array(),
+      default_idle_speeds, node_->get_logger(), "controllers.combinedvehiclecontroller.motor_idle_speeds");
+
     thrust_trim_ = vector_parameter_or_default(
       node_->get_parameter("controllers.combinedvehiclecontroller.thrust_trim").as_double_array(),
       default_thrust_trim,
@@ -578,7 +589,7 @@ namespace autopilot {
       std::swap(servo_min_, servo_max_);
     }
     for (int i = 0; i < 5; ++i) {
-      if (motor_constants_(i) <= 0.0) {
+      if (!std::isfinite(motor_constants_(i)) || motor_constants_(i) <= 0.0) {
         RCLCPP_WARN(
           node_->get_logger(),
           "Motor constant %d must be positive; using default %.8g",
@@ -586,13 +597,20 @@ namespace autopilot {
           default_motor_constants(i));
         motor_constants_(i) = default_motor_constants(i);
       }
-      if (max_rot_velocities_(i) <= 0.0) {
+      if (!std::isfinite(max_rot_velocities_(i)) || max_rot_velocities_(i) <= 0.0) {
         RCLCPP_WARN(
           node_->get_logger(),
           "Max rotational velocity %d must be positive; using default %.3f",
           i,
           default_max_rot_velocities(i));
         max_rot_velocities_(i) = default_max_rot_velocities(i);
+      }
+    }
+
+    for (int i = 0; i < 5; ++i) {
+      if (!std::isfinite(motor_idle_speeds_(i)) || motor_idle_speeds_(i) < 0.0 ||
+          motor_idle_speeds_(i) >= max_rot_velocities_(i)) {
+        throw std::invalid_argument("motor_idle_speeds must be finite and in [0, max_rot_velocity)");
       }
     }
 
@@ -892,6 +910,7 @@ namespace autopilot {
       {"Tf", {motor_thrust_results_(4)}},
       {"T1max", {maxima(0)}}, {"T2max", {maxima(1)}}, {"T3max", {maxima(2)}},
       {"T4max", {maxima(3)}}, {"Tfmax", {maxima(4)}},
+      {"motor_idle_speeds", values(motor_idle_speeds_)},
       {"motor_constants", values(motor_constants_)}, {"max_rot_velocities", values(max_rot_velocities_)},
       {"mass", {mass_}}, {"shuttle_mass", {shuttle_mass_}}, {"fixed_wing_mass", {fixed_wing_mass_}},
       {"attitude_rate_limits", values(attitude_rate_limits_)},
@@ -1223,9 +1242,8 @@ namespace autopilot {
     const Eigen::Matrix<double, 5, 1>& thrust) const {
     Eigen::Matrix<double, 5, 1> motor_command;
     for (int i = 0; i < 5; ++i) {
-      const double thrust_max =
-        motor_constants_(i) * max_rot_velocities_(i) * max_rot_velocities_(i);
-      motor_command(i) = std::sqrt(std::clamp(thrust(i), 0.0, thrust_max) / thrust_max);
+      motor_command(i) = thrust_to_motor_command(
+        thrust(i), motor_constants_(i), max_rot_velocities_(i), motor_idle_speeds_(i));
     }
     return motor_command;
   }
@@ -1254,31 +1272,16 @@ namespace autopilot {
       non_finite_thrust_requested =
         non_finite_thrust_requested || !std::isfinite(requested_thrust);
 
-      // These motors are non-reversible. Never forward negative or invalid
-      // allocation results to PX4: explicitly request zero from that motor.
-      thrust_after_saturation(i) =
-        std::isfinite(requested_thrust) && requested_thrust > 0.0 ?
-        std::min(requested_thrust, thrust_max) : 0.0;
+      // A zero command still produces armed idle thrust in the Gazebo model.
+      const double thrust_min = motor_constants_(i) * std::pow(motor_idle_speeds_(i), 2);
+      thrust_after_saturation(i) = std::isfinite(requested_thrust) ?
+        std::clamp(requested_thrust, thrust_min, thrust_max) : thrust_min;
       clipped = clipped || thrust_after_saturation(i) != thrust_before_saturation(i);
     }
     const Eigen::Matrix<double, 5, 1> omega_cmd = thrust_to_motor_speed(thrust_after_saturation);
     const Eigen::Matrix<double, 5, 1> actuator_commands =
       thrust_to_normalized_motor_command(thrust_after_saturation);
-    const Eigen::Matrix<double, 5, 1> achieved_wrench =
-      effectiveness * (thrust_after_saturation - thrust_trim_);
-    const Eigen::Matrix<double, 5, 1> wrench_error = u_phys - achieved_wrench;
     requested_thrust_results_ = thrust_before_saturation;
-
-    geometry_msgs::msg::WrenchStamped achieved_wrench_msg;
-    achieved_wrench_msg.header.stamp = node_->get_clock()->now();
-    achieved_wrench_msg.header.frame_id = "combined_body";
-    achieved_wrench_msg.wrench.torque.x = achieved_wrench(0);
-    achieved_wrench_msg.wrench.torque.y = achieved_wrench(1);
-    achieved_wrench_msg.wrench.torque.z = achieved_wrench(2);
-    achieved_wrench_msg.wrench.force.x = achieved_wrench(3);
-    achieved_wrench_msg.wrench.force.y = 0.0;
-    achieved_wrench_msg.wrench.force.z = achieved_wrench(4);
-    achieved_wrench_pub_->publish(achieved_wrench_msg);
 
     const float nan = std::numeric_limits<float>::quiet_NaN();
 
@@ -1306,10 +1309,26 @@ namespace autopilot {
     for (int i = 0; i < 5; ++i) {
       const double command = i < 4 ? shuttle_motors_msg_.control[i] :
                                     fixed_wing_motors_msg_.control[0];
-      const double maximum = motor_constants_(i) * std::pow(max_rot_velocities_(i), 2);
-      motor_thrust_results_(i) = maximum * std::pow(std::clamp(command, 0.0, 1.0), 2);
+      motor_thrust_results_(i) = motor_command_to_thrust(
+        command, motor_constants_(i), max_rot_velocities_(i), motor_idle_speeds_(i));
     }
     achieved_wrench_results_ = effectiveness * (motor_thrust_results_ - thrust_trim_);
+    const Eigen::Matrix<double, 5, 1> achieved_wrench =
+      achieved_wrench_results_;
+    const Eigen::Matrix<double, 5, 1> wrench_error = u_phys - achieved_wrench;
+
+    geometry_msgs::msg::WrenchStamped achieved_wrench_msg;
+    achieved_wrench_msg.header.stamp = node_->get_clock()->now();
+    achieved_wrench_msg.header.frame_id = "combined_body";
+    achieved_wrench_msg.wrench.torque.x = achieved_wrench(0);
+    achieved_wrench_msg.wrench.torque.y = achieved_wrench(1);
+    achieved_wrench_msg.wrench.torque.z = achieved_wrench(2);
+    achieved_wrench_msg.wrench.force.x = achieved_wrench(3);
+    achieved_wrench_msg.wrench.force.y = 0.0;
+    achieved_wrench_msg.wrench.force.z = achieved_wrench(4);
+    achieved_wrench_pub_->publish(achieved_wrench_msg);
+
+
 
     fixed_wing_servos_msg_.timestamp = now_us;
     fixed_wing_servos_msg_.timestamp_sample = now_us;
@@ -1324,11 +1343,11 @@ namespace autopilot {
     allocation_log << "CombinedVehicleController physical allocation" << (clipped ? " clipped" : "") << "\n";
     if (negative_thrust_requested) {
       allocation_log
-        << "  note: negative motor thrust request replaced with a 0 command\n";
+        << "  note: negative motor thrust request clamped to armed idle thrust\n";
     }
     if (non_finite_thrust_requested) {
       allocation_log
-        << "  note: non-finite motor thrust request replaced with a 0 command\n";
+        << "  note: non-finite motor thrust request clamped to armed idle thrust\n";
     }
     allocation_log
       << "  wrench axes       [Mx My Mz Fx Fz]\n"

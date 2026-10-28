@@ -155,3 +155,35 @@ Stop the launch with Ctrl-C to close the bag cleanly.
 
 Stationary Offboard checks are described in [BENCH_OFFBOARD.md](BENCH_OFFBOARD.md).
 Diagnostic phase 8 indicates bench Offboard active; LOS4 is not evaluated.
+
+## RC channel 7 and armed-state plot
+
+The bottom-right step plot compares received channel 7 and PX4 armed state.
+`rviz_plots/rc/channel7` stores raw PWM-like values in microseconds, extracted
+from `telemetry/rc_channels` index 6. The display applies `(PWM - 1000)/1000`:
+Low is approximately 0, Mid 0.5, and High 1. Receiver endpoints can lie slightly
+outside this nominal interval. Armed is 0 for false and 1 for true. No initial
+zero is invented and missing input does not become a false disarmed indication.
+
+The live `pf_los4_rviz.launch.py` starts `rc_status_plot` automatically. These
+scalar topics are included by the existing optional bag recording topic regex.
+There are no Pi-side changes.
+
+For older bags containing `telemetry/rc_channels` and `telemetry/armed` but not
+the new plotting topics, run this additional computer terminal during playback:
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/VioLET/install/setup.bash
+ros2 run violet_rviz rc_status_plot --ros-args -r __ns:=/drone1 -p use_sim_time:=true
+```
+
+Then open RViz and play the bag with `--clock` as usual. New bags containing the
+plot scalars can be replayed directly without this extra node.
+
+The same live/playback plotting node also publishes
+`rviz_plots/velocity/horizontal_speed` from `telemetry/velocity` as
+`sqrt(vNorth^2 + vEast^2)`. The velocity graph shows this alongside the existing
+full `sqrt(vNorth^2 + vEast^2 + vDown^2)` curve, now labelled Ground Speed (3D).
+It works with old bags through the playback launch, without regenerating the
+other recorded plot topics. No missing sample is replaced with zero.

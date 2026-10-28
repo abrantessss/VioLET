@@ -217,10 +217,10 @@ class MavsdkVisualization(Node):
 
     def environment_cb(self, msg):
         v = msg.data
-        if len(v) != 12 or v[0] != 1 or v[1] != 3:
+        if len(v) != 12 or v[0] not in (1, 2) or v[1] != 3:
             return
         if v[9] == 1:
-            self.scalar('velocity/airspeed', v[3])
+            self.scalar('velocity/airspeed', v[4])
         if v[10] == 1 and all(math.isfinite(x) for x in v[5:7]):
             self.scalar('wind/north', v[5])
             self.scalar('wind/east', v[6])

@@ -47,6 +47,7 @@ namespace autopilot{
       rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr mode_pub_;
 
       // Variables
+      bool record_wind_airspeed_{false};
       double gamma_;
       double m_;
       double Tmax_;

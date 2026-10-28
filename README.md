@@ -401,3 +401,31 @@ Each vehicle runs in its own namespace (`/drone1`, `/drone2`, ...) and its PX4 w
 - [Pegasus Project](https://github.com/PegasusResearch) — inspiration for the framework architecture.
 - [PX4 Autopilot](https://github.com/PX4/PX4-Autopilot) and [px4_msgs](https://github.com/PX4/px4_msgs).
 - [rviz_2d_plot_plugin](https://github.com/amgaber95/rviz_2d_plot_plugin).
+### Compare LOS4 controllers in wind
+
+Both runs below use `helipad_wind.world` (5 m/s from north) and matching
+controller gains/limits. Restart the simulation between runs and use the same
+mission script and parameters.
+
+```bash
+# Updated controller: true airspeed energy feedback and estimated-wind curvature compensation
+ros2 launch violet easyglider_wind.launch.py controller:=los4_wind
+
+# Baseline controller: ground-speed energy feedback and original curvature feedforward
+ros2 launch violet easyglider_wind.launch.py controller:=los4
+```
+
+In a second terminal, run the same mission for each experiment, for example:
+
+```bash
+ros2 run violet_scripts easyglider_lemniscate
+```
+
+Mission recording is enabled by default. Bags under `violet_plots/bags` start
+with `los4_wind_lemniscate_...` or `los4_lemniscate_...`, respectively. Both record
+`/<vehicle_ns>/fmu/out/wind` and
+`/<vehicle_ns>/fmu/out/airspeed_validated_v1` whenever those messages arrive,
+including their validity/source fields. The baseline records these sensors but
+does not use them in its control law. A `config_yaml:=...` override takes
+precedence over the controller argument; keep the two configurations' gains
+matched when tuning a comparison.

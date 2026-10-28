@@ -250,12 +250,12 @@ Visualization Manager:
     Name: Vehicle Velocity
     Plot Mode: Time Series
     Series:
-      Series Count: 4
+      Series Count: 5
       Series 1:
         Value: true
         Topic: /drone1/rviz_plots/velocity/speed
         Field: data
-        Label: Ground Speed
+        Label: Ground Speed (3D)
         Unit: m/s
         Color: 80; 170; 255
         Line Width: 2
@@ -268,7 +268,7 @@ Visualization Manager:
         Value: true
         Topic: /drone1/rviz_plots/velocity/airspeed
         Field: data
-        Label: True Airspeed
+        Label: Calibrated Airspeed (CAS)
         Unit: m/s
         Color: 255; 170; 60
         Line Width: 2
@@ -300,6 +300,19 @@ Visualization Manager:
         Line Width: 2
         Line Alpha: 1
         Line Style: Dash
+        Plot Style: Line
+        Value Scale: 1
+        Value Offset: 0
+      Series 5:
+        Value: true
+        Topic: /drone1/rviz_plots/velocity/horizontal_speed
+        Field: data
+        Label: Horizontal Ground Speed
+        Unit: m/s
+        Color: 80; 220; 130
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
         Plot Style: Line
         Value Scale: 1
         Value Offset: 0
@@ -943,6 +956,72 @@ Visualization Manager:
       Y Offset: 10
       Horizontal Alignment: Left
       Vertical Alignment: Top
+    Style:
+      Background Color: 0; 0; 0
+      Background Alpha: 0.74
+      Axis Color: 230; 230; 230
+      Grid Color: 130; 130; 130
+      Text Color: 245; 245; 245
+      Font Size: 8
+    QoS:
+      Reliability: Reliable
+      Durability: Volatile
+      Depth: 10
+  - Class: rviz_2d_plot_plugin/Plot2D
+    Enabled: true
+    Name: RC Channel 7 and Armed
+    Plot Mode: Time Series
+    Series:
+      Series Count: 2
+      Series 1:
+        Value: true
+        Topic: /drone1/rviz_plots/rc/channel7
+        Field: data
+        Label: CH7 (Low=0 Mid=0.5 High=1)
+        Unit: ''
+        Color: 25; 230; 240
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Step
+        Value Scale: 0.001
+        Value Offset: -1
+      Series 2:
+        Value: true
+        Topic: /drone1/rviz_plots/rc/armed
+        Field: data
+        Label: Armed (False=0 True=1)
+        Unit: ''
+        Color: 255; 170; 60
+        Line Width: 2
+        Line Alpha: 1
+        Line Style: Solid
+        Plot Style: Step
+        Value Scale: 1
+        Value Offset: 0
+    Time:
+      Time Source: Receive Time
+      Window Seconds: 60
+      Refresh Rate: 20
+    Y Axis:
+      Auto Scale: false
+      Y Min: -0.1
+      Y Max: 1.1
+    References:
+      Reference Count: 0
+    Legend:
+      Enabled: true
+      Show Values: true
+      Position: Top Right
+      X Offset: 4
+      Y Offset: 4
+    Layout:
+      Width: 430
+      Height: 190
+      X Offset: 10
+      Y Offset: 10
+      Horizontal Alignment: Right
+      Vertical Alignment: Bottom
     Style:
       Background Color: 0; 0; 0
       Background Alpha: 0.74

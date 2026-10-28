@@ -59,6 +59,8 @@ def generate_launch_description():
                  'history_length': ParameterValue(LaunchConfiguration('history_length'), value_type=int),
                  'marker_diameter': ParameterValue(LaunchConfiguration('marker_diameter'), value_type=float),
              }]),
+        Node(package='violet_rviz', executable='rc_status_plot',
+             namespace=LaunchConfiguration('vehicle_ns'), output='screen'),
         Node(package='violet_rviz', executable='camera_stream',
              namespace=LaunchConfiguration('vehicle_ns'), output='screen',
              condition=IfCondition(LaunchConfiguration('camera_enabled')), parameters=[{

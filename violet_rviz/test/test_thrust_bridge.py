@@ -148,16 +148,22 @@ def test_body_rates_decode_and_rviz_topics():
 
 
 
-def test_true_airspeed_uses_wind_controller_energy_measurement_only():
-    from violet_rviz.plot_bridge import _true_airspeed_values
-    blocks = [('speed', [25.0]), ('energy_speed', [20.0])]
-    assert _true_airspeed_values(message('los4_wind', blocks, offset=2)) == {
-        'velocity/true_airspeed': 20.0}
-    assert _true_airspeed_values(message('los4', blocks)) == {}
-    assert _true_airspeed_values(message('los4_wind', [('energy_speed', [math.nan])])) == {}
-    packet = message('los4_wind', blocks)
-    packet.data.pop()
-    assert _true_airspeed_values(packet) == {}
+def test_true_airspeed_uses_sensor_independently_of_controller():
+    from types import SimpleNamespace
+    published = {}
+    bridge = SimpleNamespace(_publish_scalar=lambda key, value: published.update({key: value}))
+    msg = SimpleNamespace(true_airspeed_m_s=20.0, airspeed_source=1)
+    PlotBridge.airspeed_cb(bridge, msg)
+    assert published == {'velocity/true_airspeed': 20.0}
+    # Baseline controller diagnostics must not erase or replace sensor airspeed.
+    bridge.latest_tracking_values = {}
+    PlotBridge.controller_results_cb(bridge, message('los4', [('energy_speed', [25.0])]))
+    assert 'velocity/true_airspeed' not in bridge.latest_tracking_values
+    assert published == {'velocity/true_airspeed': 20.0}
+    for speed, source in [(math.nan, 1), (-1.0, 1), (20.0, -1)]:
+        published.clear()
+        PlotBridge.airspeed_cb(bridge, SimpleNamespace(true_airspeed_m_s=speed, airspeed_source=source))
+        assert published == {}
     config = yaml.safe_load((Path(__file__).parents[1] / 'rviz/violet_plots.rviz').read_text())
     plot = next(d for d in config['Visualization Manager']['Displays'] if d.get('Name') == 'Velocity')
     assert plot['Series']['Series Count'] == 4

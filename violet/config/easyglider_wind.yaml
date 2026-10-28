@@ -64,11 +64,12 @@
         airspeed_topic: "fmu/out/airspeed_validated_v1"
         airspeed_timeout: 1.0  # seconds; no ground-speed fallback
       los4controller:
+        record_wind_airspeed: true  # retain raw sensors for wind comparisons
         attitude_ff_filter_tau: 0.5  # roll/pitch feedforward rate low-pass time constant [s]
         m: 1.48  # kg
         Tmax: 104.720105  # N; Gazebo motorConstant * maxRotVelocity^2
         gains:
-          k1: 1.5
+          k1: 1.0
           k2: 18.0
           kpE: 0.05
           kiE: 0.005
